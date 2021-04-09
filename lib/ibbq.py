@@ -1,8 +1,10 @@
 import asyncio
+import bleak
 import binascii
 import datetime
 import enum
 import struct
+from uuid import UUID
 
 
 class Characteristics(enum.IntEnum):
@@ -31,19 +33,17 @@ def FtoC(temp):
 
 
 class iBBQ:
-   def __init__(self, adapter, address=None):
-      self._adapter = adapter
-      self._address = address
+   def __init__(self):
       self._celcius = False
       self._connected = False
       self._device = None
-      self._characteristics = None
+      self._characteristics = {}
       self._currentTemps = []
       self._currentBatteryLevel = None
 
    @property
    def address(self):
-      return self._address
+      return self._device.address if self._device else None
 
    @property
    def unit(self):
@@ -61,97 +61,103 @@ class iBBQ:
    def batteryLevel(self):
       return self._currentBatteryLevel
 
-   async def find(self):
-      print("Scanning for iBBQ")
-      while True:
-         devs = self._adapter.scan()
-         for dev in devs:
-            if dev["name"] == "iBBQ":
-               #print("Found iBBQ: %s" % dev["address"])
-               self._address = dev["address"]
-               return
-         await asyncio.sleep(1)
-
-   def _cbDisconnect(self, *args, **kwargs):
-      #print("Disconnect callback received")
+   def _cbDisconnect(self, client):
+      print("Disconnect callback received")
       self._connected = False
 
-   def connect(self):
-      if self._address is None:
-         raise RuntimeError("Device address not set")
+   async def connect(self, address=None):
+      if self._device is None:
+         if address is None:
+            while self._device is None:
+               devs = await bleak.BleakScanner.discover()
+               for dev in devs:
+                  if dev.name == "iBBQ":
+                     #print("Found iBBQ: %s" % dev.address)
+                     self._device = dev
+                     break
+               await asyncio.sleep(1)
+         else:
+             self._device = await bleak.BleakScanner.find_device_by_address(address)
+             if self._device is None:
+                 raise ValueError("Device with address %s not found" % address)
+      elif address is not None and self._device.address != address:
+         raise NotImplementedError("Changing BLE address not supported")
 
-      self._device = self._adapter.connect(self._address)
+      self._client = bleak.BleakClient(self._device,
+                                       disconnected_callback=self._cbDisconnect)
+      await self._client.connect()
 
-      # Time portion of UUID is characteristic key
-      self._characteristics = {
-         k.time: v
-      for k, v in self._device.discover_characteristics().items() }
+      services = await self._client.get_services()
+      for characteristic in services.characteristics.values():
+        # Time portion of UUID is characteristic key
+        char_uuid = UUID(characteristic.uuid)
+        self._characteristics[char_uuid.time] = characteristic
 
-      self._device.char_write(
-         self._characteristics[Characteristics.Pair.value].uuid,
-         PairKey
+      await self._client.write_gatt_char(
+         self._characteristics[Characteristics.Pair.value],
+         PairKey,
+         response=True
       )
       self._connected = True
 
-      self._device.register_disconnect_callback(self._cbDisconnect)
-
       # Sync settings to device
       if self._celcius:
-         self._setUnit(SettingsData.SetUnitCelcius.value)
+         await self._setUnit(SettingsData.SetUnitCelcius.value)
       else:
-         self._setUnit(SettingsData.SetUnitFarenheit.value)
+         await self._setUnit(SettingsData.SetUnitFarenheit.value)
 
       #print("Paired")
 
-   def subscribe(self):
+   async def subscribe(self):
       if not self.connected:
          raise RuntimeError("Device not connected")
 
-      self._device.subscribe(
-         self._characteristics[Characteristics.RealtimeTempNotify.value].uuid,
-         callback=self._cbRealtimeTempNotify
+      await self._client.start_notify(
+         self._characteristics[Characteristics.RealtimeTempNotify.value],
+         self._cbRealtimeTempNotify
       )
-      self._device.char_write(
-         self._characteristics[Characteristics.SettingsUpdate.value].uuid,
+      await self._client.write_gatt_char(
+         self._characteristics[Characteristics.SettingsUpdate.value],
          SettingsData.EnableRealtimeData.value,
-         wait_for_response=False
+         response=False
       )
 
-      self._device.subscribe(
-         self._characteristics[Characteristics.SettingsNotify.value].uuid,
-         callback=self._cbSettingsNotify
+      await self._client.start_notify(
+         self._characteristics[Characteristics.SettingsNotify.value],
+         self._cbSettingsNotify
       )
-      self._device.char_write(
-         self._characteristics[Characteristics.SettingsUpdate.value].uuid,
+      await self._client.write_gatt_char(
+         self._characteristics[Characteristics.SettingsUpdate.value],
          SettingsData.EnableBatteryData.value,
-         wait_for_response=False
+         response=False
       )
 
 
-   def _setUnit(self, data):
+   async def _setUnit(self, data):
       if not self.connected:
          raise RuntimeError("Device not connected")
 
-      self._device.char_write(
-         self._characteristics[Characteristics.SettingsUpdate.value].uuid,
-         data
+      await self._client.write_gatt_char(
+         self._characteristics[Characteristics.SettingsUpdate.value],
+         data,
+         response=False
       )
 
-   def setUnitCelcius(self):
+   async def setUnitCelcius(self):
       self._celcius = True
       try:
-         self._setUnit(SettingsData.SetUnitCelcius.value)
+         await self._setUnit(SettingsData.SetUnitCelcius.value)
       except RuntimeError:
          pass
 
-   def setUnitFarenheit(self):
+   async def setUnitFarenheit(self):
       self._celcius = False
       try:
-         self._setUnit(SettingsData.SetUnitFarenheit.value)
+         await self._setUnit(SettingsData.SetUnitFarenheit.value)
       except RuntimeError:
          pass
 
-   def setProbeTargetTemp(self, probe, min, max):
+   async def setProbeTargetTemp(self, probe, min, max):
       if not self.connected:
          raise RuntimeError("Device not connected")
 
@@ -161,9 +167,10 @@ class iBBQ:
       # See SettingsData.SetTargetTemp
       data = b"\x01" + struct.pack("<Bhh", probe, int(min * 10), int(max * 10))
 
-      self._device.char_write(
-         self._characteristics[Characteristics.SettingsUpdate.value].uuid,
-         data
+      await self._client.write_gatt_char(
+         self._characteristics[Characteristics.SettingsUpdate.value],
+         data,
+         response=False
       )
 
    def _calcTemp(self, probeData):

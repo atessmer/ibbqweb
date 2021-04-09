@@ -4,39 +4,27 @@ import aiohttp.web
 import argparse
 import asyncio
 import datetime
-import http.server
-import logging
 import os.path
-import pygatt
-import socketserver
-import sys
-import time
 
 from lib.ibbq import iBBQ
-
-
-#logging.basicConfig()
-#logging.getLogger('pygatt').setLevel(logging.DEBUG)
 
 
 HTTP_PORT = 8080
 WEBROOT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "webroot")
 
-async def deviceManager(ibbq):
-   if ibbq.address is None:
-      await ibbq.find()
-
-   print("Connecting to %s..." % ibbq.address)
+async def deviceManager(ibbq, address):
+   print("Connecting to %s..." % address)
    while True:
       try:
          try:
-            ibbq.connect()
-         except pygatt.exceptions.NotConnectedError:
+            await ibbq.connect(address)
+         except Exception as e:
+            print("Exception connecting: %s" % e)
             await asyncio.sleep(1)
             continue
          print("Connected")
 
-         ibbq.subscribe()
+         await ibbq.subscribe()
 
          while True:
             if not ibbq.connected:
@@ -75,15 +63,12 @@ async def main():
    parser.add_argument('--mac')
    args = parser.parse_args()
 
-   adapter = pygatt.GATTToolBackend()
-   adapter.start()
-
-   ibbq = iBBQ(adapter, args.mac)
+   ibbq = iBBQ()
 
    if args.unit == "C":
-      ibbq.setUnitCelcius()
+      await ibbq.setUnitCelcius()
    else:
-      ibbq.setUnitFarenheit()
+      await ibbq.setUnitFarenheit()
 
    webapp = aiohttp.web.Application()
    webapp.add_routes([
@@ -94,7 +79,7 @@ async def main():
    await webappRunner.setup()
 
    await asyncio.gather(
-      deviceManager(ibbq),
+      deviceManager(ibbq, args.mac),
       aiohttp.web.TCPSite(webappRunner, port=8080).start()
    )
 
