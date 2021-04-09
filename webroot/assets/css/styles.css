@@ -19,6 +19,10 @@ body {
    background-color: green;
 }
 
+.gray-dot {
+   background-color: gray !important;
+}
+
 #server_reconnecting {
    position: absolute;
    top: 0;

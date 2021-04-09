@@ -62,7 +62,6 @@ class iBBQ:
       return self._currentBatteryLevel
 
    def _cbDisconnect(self, client):
-      print("Disconnect callback received")
       self._connected = False
 
    async def connect(self, address=None):
@@ -218,16 +217,18 @@ class iBBQ:
             6172, 6191, 6211, 6230, 6249, 6265, 6280, 6285, 6290, 6295,    # 80-90%
             6300, 6305, 6310, 6315, 6320, 6325, 6330, 6335, 6340, 6344     # 90-100%
          ]
-         if curVoltage > VOLTAGES[-1] * factor:
+         if curVoltage == 0:
+            # Charging
+            self._currentBatteryLevel = 0xffff
+         elif curVoltage > VOLTAGES[-1] * factor:
             self._currentBatteryLevel = 100
          else:
-            for i, percentVoltage in enumerate(VOLTAGES):
+            for i, percentVoltage in enumerate(VOLTAGES[1:]):
                if curVoltage < percentVoltage * factor:
                   self._currentBatteryLevel = i-1
                   break
          #print("Battery %d%%: Cur=%dnV, Max=%dmV, Factor=%f" %
-         #      (self._batteryLevel, curVoltage, maxVoltage, factor))
-      elif data[0] == 0xff:
+         #      (self._currentBatteryLevel, curVoltage, maxVoltage, factor))
          # Setting successful
          print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
          if data[1] == 0x01:

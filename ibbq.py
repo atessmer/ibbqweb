@@ -19,7 +19,6 @@ async def deviceManager(ibbq, address):
          try:
             await ibbq.connect(address)
          except Exception as e:
-            print("Exception connecting: %s" % e)
             await asyncio.sleep(1)
             continue
          print("Connected")
