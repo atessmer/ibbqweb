@@ -1,0 +1,6 @@
+Requirements:
+-------------------------------
+pip install pygatt
+pip install aiohttp
+
+sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hcitool`
