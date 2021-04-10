@@ -90,6 +90,12 @@ def websocketHandlerFactory(ibbq):
          return
    return websocketHandler
 
+@aiohttp.web.middleware
+async def indexMiddleware(request, handler):
+   if request.path == "/":
+      return aiohttp.web.FileResponse(os.path.join(WEBROOT, "index.html"))
+   return await handler(request)
+
 async def main():
    parser = argparse.ArgumentParser(description='iBBQ bluetooth monitor')
    parser.add_argument('--unit', choices=["C", "F"])
@@ -103,7 +109,7 @@ async def main():
    else:
       await ibbq.setUnitFarenheit()
 
-   webapp = aiohttp.web.Application()
+   webapp = aiohttp.web.Application(middlewares=[indexMiddleware])
    webapp.add_routes([
       aiohttp.web.get('/ws', websocketHandlerFactory(ibbq)),
       aiohttp.web.static('/', WEBROOT)
