@@ -48,42 +48,46 @@ async def websocketHandleCmd(ibbq, data):
 
 def websocketHandlerFactory(ibbq):
    async def websocketHandler(request):
-      print("Websocket: request=%s" % str(request))
-      ws = aiohttp.web.WebSocketResponse()
-      await ws.prepare(request)
+      try:
+          print("Websocket: request=%s" % str(request))
+          ws = aiohttp.web.WebSocketResponse()
+          await ws.prepare(request)
 
-      clientUnit = ibbq.unit
-      payload = {
-         "cmd": "unit_update",
-         "celcius": clientUnit == "C",
-      }
-      await ws.send_json(payload)
+          clientUnit = ibbq.unit
+          payload = {
+             "cmd": "unit_update",
+             "celcius": clientUnit == "C",
+          }
+          await ws.send_json(payload)
 
-      while True:
-         payload = {
-            "cmd": "state_update",
-            "connected": ibbq.connected,
-            "batteryLevel": ibbq.batteryLevel,
-            "probeTemperaturesC": ibbq.probeTemperaturesC,
-         }
-         await ws.send_json(payload)
+          while True:
+             payload = {
+                "cmd": "state_update",
+                "connected": ibbq.connected,
+                "batteryLevel": ibbq.batteryLevel,
+                "probeTemperaturesC": ibbq.probeTemperaturesC,
+             }
+             await ws.send_json(payload)
 
-         if ibbq.unit != clientUnit:
-            clientUnit = ibbq.unit
-            payload = {
-               "cmd": "unit_update",
-               "celcius": clientUnit == "C",
-            }
-            await ws.send_json(payload)
+             if ibbq.unit != clientUnit:
+                clientUnit = ibbq.unit
+                payload = {
+                   "cmd": "unit_update",
+                   "celcius": clientUnit == "C",
+                }
+                await ws.send_json(payload)
 
-         try:
-            data = await ws.receive_json(timeout=1)
-            await websocketHandleCmd(ibbq, data)
-         except asyncio.TimeoutError:
-            pass
-         except Exception as e:
-            print("Websocket exception on receive (%s): %s" %
-                  (type(e), str(e)))
+             try:
+                data = await ws.receive_json(timeout=1)
+                await websocketHandleCmd(ibbq, data)
+             except (asyncio.TimeoutError, TypeError):
+                pass
+             except Exception as e:
+                print("Websocket: exception on receive (%s): %s" %
+                      (type(e), str(e)))
+      except ConnectionResetError:
+         # Connection closed by peer
+         return
    return websocketHandler
 
 async def main():
