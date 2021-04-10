@@ -1,11 +1,51 @@
+var ws;
 var serverReconnecting;
 var ibbqConnectedDot;
 var ibbqBatteryValue;
-var ibbqProbeTemps;
+var ibbqUnitCelcius;
 var chart;
 
+function CtoF(temp) {
+   return (temp * 9 / 5) + 32
+}
+
+function FtoC(temp) {
+   return (temp - 32) * 5 / 9
+}
+
+function tempCtoCurUnit(tempC) {
+   if (tempC != null && !ibbqUnitCelcius.checked) {
+      return CtoF(tempC);
+   }
+   return tempC;
+}
+
+function setUnit() {
+   if (ws.readyState != 1) {
+      // Not connected
+      return
+   }
+   ws.send(JSON.stringify({
+      cmd: 'set_unit',
+      celcius: this.checked,
+   }))
+
+   updateUnit()
+}
+
+function updateUnit() {
+   for (var i = 0; i < chart.options.data.length; i++) {
+      var dataSeries = chart.options.data[i];
+      for (var j = 0; j < dataSeries.dataPoints.length; j++) {
+         var dataPoint = dataSeries.dataPoints[j]
+         dataPoint.y = tempCtoCurUnit(dataPoint.tempC)
+      }
+   }
+   chart.render()
+}
+
 function connectWebsocket() {
-   var ws = new WebSocket("ws://" + window.location.host + "/ws")
+   ws = new WebSocket("ws://" + window.location.host + "/ws")
 
    ws.onopen = function(event) {
       if (!serverReconnecting.classList.contains("hidden")) {
@@ -27,52 +67,57 @@ function connectWebsocket() {
    ws.onmessage = function (event) {
       data = JSON.parse(event.data)
 
-      if (data.connected) {
-         ibbqConnectedDot.classList.add("green-dot")
-      } else {
-         ibbqConnectedDot.classList.remove("green-dot")
-      }
-
-      if (data.batteryLevel == null) {
-         ibbqBatteryValue.textContent = "Unknown"
-      } else if (data.batteryLevel == 0xffff) {
-         ibbqBatteryValue.textContent = "Charging"
-      } else {
-         ibbqBatteryValue.textContent = data.batteryLevel + "%"
-      }
-
-      var now = new Date()
-      for (var i = 0; i < data.probeTemperatures.length; i++) {
-         var temp = data.probeTemperatures[i]
-         var tempStr = temp ? temp + "\u00b0" + data.unit : "Disconnected"
-
-         if (chart.options.data.length < i + 1) {
-            chart.options.data.push({
-               type: "line",
-               markerType: "none",
-               name: "Probe " + (i+1),
-               legendText: "Probe " + (i+1),
-               dataPoints: [],
-            })
+      if (data.cmd == "state_update") {
+         if (data.connected) {
+            ibbqConnectedDot.classList.add("green-dot")
+         } else {
+            ibbqConnectedDot.classList.remove("green-dot")
          }
 
-         if (temp != null || data.connected) {
-            chart.options.data[i].dataPoints.push({
-               x: now,
-               y: temp,
-            })
+         if (data.batteryLevel == null) {
+            ibbqBatteryValue.textContent = "Unknown"
+         } else if (data.batteryLevel == 0xffff) {
+            ibbqBatteryValue.textContent = "Charging"
+         } else {
+            ibbqBatteryValue.textContent = data.batteryLevel + "%"
          }
-      }
 
-      if (now >= chart.options.axisX.maximum) {
-         // Increase by 25%
-         var min = chart.options.axisX.minimum.getTime()
-         var max = chart.options.axisX.maximum.getTime()
-         var newmax = new Date(min + ((max-min) * 1.25))
-         chart.options.axisX.maximum = new Date(newmax)
-      }
+         var now = new Date()
+         for (var i = 0; i < data.probeTemperaturesC.length; i++) {
+            var tempC = data.probeTemperaturesC[i]
 
-      chart.render();
+            if (chart.options.data.length < i + 1) {
+               chart.options.data.push({
+                  type: "line",
+                  markerType: "none",
+                  name: "Probe " + (i+1),
+                  legendText: "Probe " + (i+1),
+                  dataPoints: [],
+               })
+            }
+
+            if (tempC != null || data.connected) {
+               chart.options.data[i].dataPoints.push({
+                  x: now,
+                  y: tempCtoCurUnit(tempC),
+                  tempC: tempC,
+               })
+            }
+         }
+
+         if (now >= chart.options.axisX.maximum) {
+            // Increase by 25%
+            var min = chart.options.axisX.minimum.getTime()
+            var max = chart.options.axisX.maximum.getTime()
+            var newmax = new Date(min + ((max-min) * 1.25))
+            chart.options.axisX.maximum = new Date(newmax)
+         }
+
+         chart.render();
+      } else if (data.cmd == "unit_update") {
+         ibbqUnitCelcius.checked = data.celcius
+         updateUnit()
+      }
    }
 }
 
@@ -81,7 +126,8 @@ document.onreadystatechange = function() {
       serverReconnecting = document.getElementById("server_reconnecting");
       ibbqConnectedDot = document.querySelector("#ibbq_connected .dot");
       ibbqBatteryValue = document.querySelector("#ibbq_battery .value");
-      ibbqProbeTemps = document.getElementById("ibbq_probe_temps");
+      ibbqUnitCelcius = document.getElementById("ibbq_unit_celcius");
+      ibbqUnitCelcius.onclick = setUnit
 
       var options = {
          animationEnabled: true,

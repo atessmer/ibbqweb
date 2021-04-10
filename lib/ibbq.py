@@ -25,20 +25,13 @@ class SettingsData(enum.Enum):
 PairKey = b"\x21\x07\x06\x05\x04\x03\x02\x01\xb8\x22\x00\x00\x00\x00\x00"
 
 
-def CtoF(temp):
-   return (temp * 9 / 5) + 32
-
-def FtoC(temp):
-   return (temp - 32) * 5 / 9
-
-
 class iBBQ:
    def __init__(self):
       self._celcius = False
       self._connected = False
       self._device = None
       self._characteristics = {}
-      self._currentTemps = []
+      self._currentTempsC = []
       self._currentBatteryLevel = None
 
    @property
@@ -54,8 +47,8 @@ class iBBQ:
       return self._connected
 
    @property
-   def probeTemperatures(self):
-      return self._currentTemps
+   def probeTemperaturesC(self):
+      return self._currentTempsC
 
    @property
    def batteryLevel(self):
@@ -156,13 +149,10 @@ class iBBQ:
       except RuntimeError:
          pass
 
-   async def setProbeTargetTemp(self, probe, min, max):
+   async def setProbeTargetTemp(self, probe, minTempC, maxTempC):
       if not self.connected:
          raise RuntimeError("Device not connected")
 
-      if not self._celcius:
-         min = FtoC(min)
-         max = FtoC(max)
       # See SettingsData.SetTargetTemp
       data = b"\x01" + struct.pack("<Bhh", probe, int(min * 10), int(max * 10))
 
@@ -172,26 +162,32 @@ class iBBQ:
          response=False
       )
 
-   def _calcTemp(self, probeData):
+   @staticmethod
+   def _tempCbtof(probeData):
       rawTemp = struct.unpack('<H', probeData)[0]
       if rawTemp == 0xfff6:
          return None
-      temp = rawTemp / 10
-      if self._celcius:
-         return temp
-      return CtoF(temp)
+      tempC = float(rawTemp) / 10
+      return tempC
+
+   @staticmethod
+   def _tempCftob(tempC):
+      if tempC == None:
+         rawTemp = 0xfff6
+      else:
+         rawTemp = int(tempC * 10)
+      return struct.pack('<H', rawTemp)
 
    def _cbRealtimeTempNotify(self, handle, data):
       # int16 temperature per probe, always celcius
       #print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
-      self._currentTemps = [self._calcTemp(probeData)
+      self._currentTempsC = [self._tempCbtof(probeData)
                             for probeData in [data[i:i+2] for i in range(0, len(data), 2)]]
-      #for temp in self._currentTemps:
+      #for temp in self._currentTempsC:
       #   if temp is None:
       #      print("Probe disconnected")
       #   else:
-      #      print(u"Probe temp: %.1f\N{DEGREE SIGN}%s" %
-      #            (temp, "C" if self._celcius else "F"))
+      #      print(u"Probe temp: %.1f\N{DEGREE SIGN}C" % temp)
 
    def _cbSettingsNotify(self, handle, data):
       #print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)

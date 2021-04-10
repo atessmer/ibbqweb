@@ -31,13 +31,20 @@ async def deviceManager(ibbq, address):
 
             print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
             print("Battery: %s%%" % str(ibbq.batteryLevel))
-            for idx, temp in enumerate(ibbq.probeTemperatures):
-               print("Probe %d: %s" % (idx, str(temp)))
+            for idx, temp in enumerate(ibbq.probeTemperaturesC):
+               print("Probe %d: %s%s" % (idx, str(temp), "C" if temp else ""))
 
             await asyncio.sleep(5)
       except ConnectionError:
          print("Reconnecting...")
          await asyncio.sleep(1)
+
+async def websocketHandleCmd(ibbq, data):
+   if data["cmd"] == "set_unit":
+      if data["celcius"]:
+          await ibbq.setUnitCelcius()
+      else:
+          await ibbq.setUnitFarenheit()
 
 def websocketHandlerFactory(ibbq):
    async def websocketHandler(request):
@@ -45,15 +52,38 @@ def websocketHandlerFactory(ibbq):
       ws = aiohttp.web.WebSocketResponse()
       await ws.prepare(request)
 
+      clientUnit = ibbq.unit
+      payload = {
+         "cmd": "unit_update",
+         "celcius": clientUnit == "C",
+      }
+      await ws.send_json(payload)
+
       while True:
          payload = {
+            "cmd": "state_update",
             "connected": ibbq.connected,
             "batteryLevel": ibbq.batteryLevel,
-            "unit": ibbq.unit,
-            "probeTemperatures": ibbq.probeTemperatures,
+            "probeTemperaturesC": ibbq.probeTemperaturesC,
          }
          await ws.send_json(payload)
-         await asyncio.sleep(1)
+
+         if ibbq.unit != clientUnit:
+            clientUnit = ibbq.unit
+            payload = {
+               "cmd": "unit_update",
+               "celcius": clientUnit == "C",
+            }
+            await ws.send_json(payload)
+
+         try:
+            data = await ws.receive_json(timeout=1)
+            await websocketHandleCmd(ibbq, data)
+         except asyncio.TimeoutError:
+            pass
+         except Exception as e:
+            print("Websocket exception on receive (%s): %s" %
+                  (type(e), str(e)))
    return websocketHandler
 
 async def main():
