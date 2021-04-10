@@ -7,3 +7,6 @@ sudo usermod -a -G bluetooth $(whoami)
 sudo vim /etc/dbus-1/system.d/bluetooth.conf
  -> Add permissions listed here for <policy group="bluetooth">
     https://unix.stackexchange.com/questions/348441/how-to-allow-non-root-systemd-service-to-use-dbus-for-ble-operation
+
+sudo iptables -t nat -I OUTPUT -p tcp -d 127.0.0.1 --dport 80 -j REDIRECT --to-ports 8080
+sudo iptables -t nat -I PREROUTING -p tcp --dport 80 -j REDIRECT --to-ports 8080

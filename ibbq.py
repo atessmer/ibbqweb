@@ -109,7 +109,7 @@ async def main():
 
    await asyncio.gather(
       deviceManager(ibbq, args.mac),
-      aiohttp.web.TCPSite(webappRunner, port=8080).start()
+      aiohttp.web.TCPSite(webappRunner, port=HTTP_PORT).start()
    )
 
    webappSite.cleanup()
