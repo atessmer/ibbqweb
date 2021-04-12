@@ -6,18 +6,18 @@ import asyncio
 import datetime
 import os.path
 
+import lib.config
 from lib.ibbq import iBBQ
 
 
-HTTP_PORT = 8080
 WEBROOT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "webroot")
 
-async def deviceManager(ibbq, address):
-   print("Connecting to %s..." % address)
+async def deviceManager(ibbq):
+   print("Connecting...")
    while True:
       try:
          try:
-            await ibbq.connect(address)
+            await ibbq.connect(ibbq.address)
          except Exception as e:
             await asyncio.sleep(1)
             continue
@@ -39,14 +39,15 @@ async def deviceManager(ibbq, address):
          print("Reconnecting...")
          await asyncio.sleep(1)
 
-async def websocketHandleCmd(ibbq, data):
+async def websocketHandleCmd(ibbq, cfg, data):
    if data["cmd"] == "set_unit":
-      if data["celcius"]:
+      cfg.unit = data["unit"]
+      if data["unit"] == 'C':
           await ibbq.setUnitCelcius()
       else:
           await ibbq.setUnitFarenheit()
 
-def websocketHandlerFactory(ibbq):
+def websocketHandlerFactory(ibbq, cfg):
    async def websocketHandler(request):
       try:
           print("Websocket: request=%s" % str(request))
@@ -56,11 +57,12 @@ def websocketHandlerFactory(ibbq):
           clientUnit = ibbq.unit
           payload = {
              "cmd": "unit_update",
-             "celcius": clientUnit == "C",
+             "unit": clientUnit,
           }
           await ws.send_json(payload)
 
           while True:
+             cfg.probe_count = len(ibbq.probeTemperaturesC)
              payload = {
                 "cmd": "state_update",
                 "connected": ibbq.connected,
@@ -73,13 +75,13 @@ def websocketHandlerFactory(ibbq):
                 clientUnit = ibbq.unit
                 payload = {
                    "cmd": "unit_update",
-                   "celcius": clientUnit == "C",
+                   "unit": clientUnit,
                 }
                 await ws.send_json(payload)
 
              try:
                 data = await ws.receive_json(timeout=1)
-                await websocketHandleCmd(ibbq, data)
+                await websocketHandleCmd(ibbq, cfg, data)
              except (asyncio.TimeoutError, TypeError):
                 pass
              except Exception as e:
@@ -97,29 +99,37 @@ async def indexMiddleware(request, handler):
    return await handler(request)
 
 async def main():
-   parser = argparse.ArgumentParser(description='iBBQ bluetooth monitor')
-   parser.add_argument('--unit', choices=["C", "F"])
-   parser.add_argument('--mac')
+   desc = 'iBBQ bluetooth thermometer web interface'
+   parser = argparse.ArgumentParser(description=desc)
+   parser.add_argument('-c', '--config', metavar='FILE',
+                       help="Use an alternate config file. Default: %s" %
+                            lib.config.DEFAULT_FILE,
+                       default=lib.config.DEFAULT_FILE)
    args = parser.parse_args()
 
-   ibbq = iBBQ()
+   cfg = lib.config.IbbqWebConfig(args.config)
+   cfg.load()
 
-   if args.unit == "C":
+   ibbq = iBBQ(
+      probe_count=cfg.probe_count,
+   )
+
+   if cfg.unit == 'C':
       await ibbq.setUnitCelcius()
    else:
       await ibbq.setUnitFarenheit()
 
    webapp = aiohttp.web.Application(middlewares=[indexMiddleware])
    webapp.add_routes([
-      aiohttp.web.get('/ws', websocketHandlerFactory(ibbq)),
+      aiohttp.web.get('/ws', websocketHandlerFactory(ibbq, cfg)),
       aiohttp.web.static('/', WEBROOT)
    ])
    webappRunner = aiohttp.web.AppRunner(webapp)
    await webappRunner.setup()
 
    await asyncio.gather(
-      deviceManager(ibbq, args.mac),
-      aiohttp.web.TCPSite(webappRunner, port=HTTP_PORT).start()
+      deviceManager(ibbq),
+      aiohttp.web.TCPSite(webappRunner, port=cfg.http_port).start()
    )
 
    webappSite.cleanup()

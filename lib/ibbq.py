@@ -26,12 +26,12 @@ PairKey = b"\x21\x07\x06\x05\x04\x03\x02\x01\xb8\x22\x00\x00\x00\x00\x00"
 
 
 class iBBQ:
-   def __init__(self):
+   def __init__(self, probe_count=0):
       self._celcius = False
       self._connected = False
       self._device = None
       self._characteristics = {}
-      self._currentTempsC = []
+      self._currentTempsC = [None] * probe_count
       self._currentBatteryLevel = None
 
    @property

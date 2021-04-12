@@ -27,7 +27,7 @@ function setUnit() {
    }
    ws.send(JSON.stringify({
       cmd: 'set_unit',
-      celcius: this.checked,
+      unit: this.checked ? 'C' : 'F',
    }))
 
    updateUnit()
@@ -115,7 +115,7 @@ function connectWebsocket() {
 
          chart.render();
       } else if (data.cmd == "unit_update") {
-         ibbqUnitCelcius.checked = data.celcius
+         ibbqUnitCelcius.checked = (data.unit == "C")
          updateUnit()
       }
    }
