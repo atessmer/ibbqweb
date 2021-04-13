@@ -18,6 +18,8 @@ async def deviceManager(ibbq):
       try:
          try:
             await ibbq.connect(ibbq.address)
+         except asyncio.CancelledError:
+            return
          except Exception as e:
             await asyncio.sleep(1)
             continue
@@ -49,11 +51,11 @@ async def websocketHandleCmd(ibbq, cfg, data):
 
 def websocketHandlerFactory(ibbq, cfg):
    async def websocketHandler(request):
-      try:
-          print("Websocket: request=%s" % str(request))
-          ws = aiohttp.web.WebSocketResponse()
-          await ws.prepare(request)
+      print("Websocket: request=%s" % str(request))
+      ws = aiohttp.web.WebSocketResponse()
+      await ws.prepare(request)
 
+      try:
           clientUnit = ibbq.unit
           payload = {
              "cmd": "unit_update",
@@ -84,12 +86,9 @@ def websocketHandlerFactory(ibbq, cfg):
                 await websocketHandleCmd(ibbq, cfg, data)
              except (asyncio.TimeoutError, TypeError):
                 pass
-             except Exception as e:
-                print("Websocket: exception on receive (%s): %s" %
-                      (type(e), str(e)))
-      except ConnectionResetError:
-         # Connection closed by peer
-         return
+      except (ConnectionResetError, asyncio.CancelledError):
+         # Connection closed by peer, or daemon is exiting
+         return ws
    return websocketHandler
 
 @aiohttp.web.middleware
@@ -135,4 +134,7 @@ async def main():
    webappSite.cleanup()
 
 if __name__ == "__main__":
-   asyncio.run(main())
+   try:
+      asyncio.run(main())
+   except KeyboardInterrupt:
+      pass
