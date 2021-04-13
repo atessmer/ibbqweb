@@ -41,6 +41,11 @@ function updateUnit() {
          dataPoint.y = tempCtoCurUnit(dataPoint.tempC)
       }
    }
+   if (ibbqUnitCelcius.checked) {
+      chart.options.axisY.maximum = 310
+   } else {
+      chart.options.axisY.maximum = 600
+   }
    chart.render()
 }
 
@@ -171,6 +176,7 @@ document.onreadystatechange = function() {
             labelFontSize: 20,
             logarithmic: false,
             logarithmBase: 10,
+            minimum: 0,
          },
          data: [],
       };
