@@ -48,6 +48,12 @@ async def websocketHandleCmd(ibbq, cfg, data):
           await ibbq.setUnitCelcius()
       else:
           await ibbq.setUnitFarenheit()
+   elif data["cmd"] == "set_probe_target_temp":
+      await ibbq.setProbeTargetTemp(data["probe"],
+                                    data["min_temp"],
+                                    data["max_temp"])
+   elif data["cmd"] == "silance_alarm":
+      await ibbq.silanceAllAlarms()
 
 def websocketHandlerFactory(ibbq, cfg):
    async def websocketHandler(request):

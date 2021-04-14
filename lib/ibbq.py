@@ -22,12 +22,12 @@ class SettingsData(enum.Enum):
    SetUnitFarenheit     = b"\x02\x01\x00\x00\x00\x00"
 
    GetVersion           = b"\x08\x23\x00\x00\x00\x00"
-   SilanceAlarm         = b"\x04\xfe\x00\x00\x00\x00"
-   DeviceAlarmOn        = b"\xfc\x01\x01\x01\x00\x00" # Only for "grilleye" device?
-   DeviceAlarmOff       = b"\xfc\x01\x00\x01\x00\x00" # Only for "grilleye" device?
+   SilanceAlarm         = b"\x04\{probe}\x00\x00\x00\x00" # probe = uint8; 0xff for all
+   DeviceAlarmOn        = b"\xfd\x01\x01\x01\x00\x00" # Only for "grilleye" device?
+   DeviceAlarmOff       = b"\xfd\x01\x00\x01\x00\x00" # Only for "grilleye" device?
    Unknown1             = b"\x12\x03\x00\x00\x00\x00" # App sends this during init
                                                       # Return: b"\xff\x12\x00\x00\x00\x00"
-   Unknown2             = b"\xfe\x01\x00\x00\x00\x00" # Unused in app
+   Unknown2             = b"\xff\x01\x00\x00\x00\x00" # Unused in app
 
 
 PairKey = b"\x21\x07\x06\x05\x04\x03\x02\x01\xb8\x22\x00\x00\x00\x00\x00"
@@ -132,6 +132,12 @@ class iBBQ:
          response=False
       )
 
+      await self._client.write_gatt_char(
+         self._characteristics[Characteristics.SettingsUpdate.value],
+         SettingsData.Unknown1.value,
+         response=False
+      )
+
 
    async def _setUnit(self, data):
       if not self.connected:
@@ -162,13 +168,27 @@ class iBBQ:
          raise RuntimeError("Device not connected")
 
       # See SettingsData.SetTargetTemp
-      data = b"\x01" + struct.pack("<Bhh", probe, int(min * 10), int(max * 10))
+      data = b"\x01" + struct.pack("<Bhh", probe, int(minTempC * 10),
+                                   int(maxTempC * 10))
 
       await self._client.write_gatt_char(
          self._characteristics[Characteristics.SettingsUpdate.value],
          data,
          response=False
       )
+
+   async def silanceAlarm(self, probe=0xff):
+      if not self.connected:
+         raise RuntimeError("Device not connected")
+
+      print("Silencing alarm: probe = %s" % "all" if probe == 0xff else str(probe))
+
+      # See SettingsData.SilanceAlarm
+      await self._client.write_gatt_char(
+         self._characteristics[Characteristics.SettingsUpdate.value],
+         struct.pack("6b", 0x04, probe, 0x00, 0x00, 0x00, 0x00),
+         response=False
+     )
 
    @staticmethod
    def _tempCbtof(probeData):
@@ -199,7 +219,14 @@ class iBBQ:
 
    def _cbSettingsNotify(self, handle, data):
       #print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
-      if data[0] == 0x20:
+      if data[0] == 0x04:
+         if data[1] == 0xff:
+            print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
+            print("Alarm silenced")
+         else:
+            print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
+            print("Unhandled settings callback: %s" % data)
+      elif data[0] == 0x20:
          # paring key???
          pass
       elif data[0] == 0x21:
@@ -252,16 +279,18 @@ class iBBQ:
          #print("Battery %d%%: Cur=%dnV, Max=%dmV, Factor=%f" %
          #      (self._currentBatteryLevel, curVoltage, maxVoltage, factor))
          # Setting successful
+      elif data[0] == 0xff:
          print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
          if data[1] == 0x01:
             # Probe Target Temp
-            print("Probe target temp set")
+            print("Success: Probe target temp set")
          elif data[1] == 0x02:
             # Unit
-            print("Temperature unit set")
+            print("Success: Temperature unit set")
          elif data[1] == 0x04:
-            # Button pressed to silence alarm
-            print("Alarm silenced")
+            # response for writing SettingsData.SilenceAlarm, though
+            # device alarm continues beeping
+            print("Success: Alarm silenced")
          else:
             print("Unhandled settings successful callback: %s" % data)
       else:
