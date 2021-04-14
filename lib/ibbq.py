@@ -21,6 +21,14 @@ class SettingsData(enum.Enum):
    SetUnitCelcius       = b"\x02\x00\x00\x00\x00\x00"
    SetUnitFarenheit     = b"\x02\x01\x00\x00\x00\x00"
 
+   GetVersion           = b"\x08\x23\x00\x00\x00\x00"
+   SilanceAlarm         = b"\x04\xfe\x00\x00\x00\x00"
+   DeviceAlarmOn        = b"\xfc\x01\x01\x01\x00\x00" # Only for "grilleye" device?
+   DeviceAlarmOff       = b"\xfc\x01\x00\x01\x00\x00" # Only for "grilleye" device?
+   Unknown1             = b"\x12\x03\x00\x00\x00\x00" # App sends this during init
+                                                      # Return: b"\xff\x12\x00\x00\x00\x00"
+   Unknown2             = b"\xfe\x01\x00\x00\x00\x00" # Unused in app
+
 
 PairKey = b"\x21\x07\x06\x05\x04\x03\x02\x01\xb8\x22\x00\x00\x00\x00\x00"
 
@@ -191,7 +199,25 @@ class iBBQ:
 
    def _cbSettingsNotify(self, handle, data):
       #print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
-      if data[0] == 0x24:
+      if data[0] == 0x20:
+         # paring key???
+         pass
+      elif data[0] == 0x21:
+         if data[1] == 0:
+            # Service pair "miyao" ???
+            # Connect successful
+            pass
+         elif data[1] == 1:
+            # Connect failed
+            pass
+         else:
+            # "What's this?"
+            pass
+      elif data[0] == 0x23:
+         majorVersion = data[1]
+         minorVersion = data[2]
+         patchVersion = data[3]
+      elif data[0] == 0x24:
          curVoltage = int.from_bytes(data[1:3], "little")
          maxVoltage = int.from_bytes(data[3:5], "little")
          if maxVoltage == 0:
