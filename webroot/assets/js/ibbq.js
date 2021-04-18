@@ -1,9 +1,42 @@
 var ws;
-var serverReconnecting;
-var ibbqConnectedDot;
-var ibbqBatteryValue;
+var serverDisconnectedBanner;
+var ibbqConnection;
+var ibbqBattery;
 var ibbqUnitCelcius;
 var chart;
+// Match .probe-container:nth-child(...) .probe-idx .dot
+var probeColors = [
+  "#357bcc",
+  "#32a852",
+  "#d4872a",
+  "#bdb320",
+]
+
+function CreateElement(tag, props) {
+   var e = $('<' + tag + '>');
+   for (var k in props) {
+      switch(k) {
+         case 'class':
+            e.addClass(props[k]);
+            break;
+         case 'change':
+         case 'click':
+         case 'keyup':
+            e.on(k, props[k]);
+            break;
+         case 'textContent':
+            e.text(props[k]);
+            break;
+         case 'htmlContent':
+            e.html(props[k]);
+            break;
+         default:
+            e.attr(k, props[k]);
+            break;
+      }
+   }
+   return e;
+}
 
 function CtoF(temp) {
    return (temp * 9 / 5) + 32
@@ -53,18 +86,20 @@ function connectWebsocket() {
    ws = new WebSocket("ws://" + window.location.host + "/ws")
 
    ws.onopen = function(event) {
-      if (!serverReconnecting.classList.contains("hidden")) {
+      if (serverDisconnectedBanner.classList.contains("show")) {
          console.log("websocket opened")
-         serverReconnecting.classList.add("hidden")
-         ibbqConnectedDot.classList.remove("gray-dot")
+         serverDisconnectedBanner.classList.remove("show")
+         chart.render();
       }
    }
 
    ws.onclose = function(event) {
-      if (serverReconnecting.classList.contains("hidden")) {
+      if (!serverDisconnectedBanner.classList.contains("show")) {
          console.warn("websocket closed: [" + event.code + "]")
-         serverReconnecting.classList.remove("hidden")
-         ibbqConnectedDot.classList.add("gray-dot")
+         serverDisconnectedBanner.classList.add("show")
+         ibbqConnection.classList.remove("connected")
+         ibbqConnection.classList.remove("disconnected")
+         chart.render();
       }
       setTimeout(connectWebsocket, 1000)
    }
@@ -73,30 +108,73 @@ function connectWebsocket() {
       data = JSON.parse(event.data)
 
       if (data.cmd == "state_update") {
+         /*
+          * Update connection status
+          */
          if (data.connected) {
-            ibbqConnectedDot.classList.add("green-dot")
+            ibbqConnection.classList.add("connected")
+            ibbqConnection.classList.remove("disconnected")
          } else {
-            ibbqConnectedDot.classList.remove("green-dot")
+            ibbqConnection.classList.add("disconnected")
+            ibbqConnection.classList.remove("connected")
          }
 
+         /*
+          * Update battery status
+          */
+         ibbqBattery.classList.remove(
+            'bi-battery',
+            'bi-battery-charging',
+            'bi-battery-full',
+            'bi-battery-half',
+            'text-danger',
+            'text-warning',
+         )
          if (data.batteryLevel == null) {
-            ibbqBatteryValue.textContent = "Unknown"
+            ibbqBattery.textContent = "--"
+            ibbqBattery.classList.add('bi-battery')
          } else if (data.batteryLevel == 0xffff) {
-            ibbqBatteryValue.textContent = "Charging"
+            ibbqBattery.textContent = "--"
+            ibbqBattery.classList.add('bi-battery-charging', 'text-warning')
          } else {
-            ibbqBatteryValue.textContent = data.batteryLevel + "%"
+            ibbqBattery.textContent = data.batteryLevel + "%"
+            if (data.batteryLevel <= 10) {
+               ibbqBattery.classList.add('bi-battery', 'text-danger')
+            } else if (data.batteryLevel >= 90) {
+               ibbqBattery.classList.add('bi-battery-full')
+            } else {
+               ibbqBattery.classList.add('bi-battery-half')
+            }
          }
 
+         /*
+          * Update probe data (probe and chart tabs)
+          */
          var now = new Date()
          for (var i = 0; i < data.probeTemperaturesC.length; i++) {
             var tempC = data.probeTemperaturesC[i]
+            
+            var probecontainer = document.getElementById('probe-container-' + i)
+            if (probecontainer == null) {
+               var template = document.getElementById('probe-container-template')
+               probecontainer = template.content.firstElementChild.cloneNode(true)
+
+               probecontainer.id = 'probe-container-' + i
+               probecontainer.querySelector('.probe-idx .dot').textContent = i
+               document.getElementById('probe-list').append(probecontainer);
+            }
+
+            probecontainer.querySelector('.probe-temp-current').innerHTML =
+               (tempC != null ? tempCtoCurUnit(tempC) + "&deg;" : "--")
 
             if (chart.options.data.length < i + 1) {
                chart.options.data.push({
                   type: "line",
                   markerType: "none",
                   name: "Probe " + (i+1),
-                  legendText: "Probe " + (i+1),
+                  showInLegend: true,
+                  legendText: "N/A",
+                  color: i <= probeColors.length ? probeColors[i] : "#000",
                   dataPoints: [],
                })
             }
@@ -107,6 +185,8 @@ function connectWebsocket() {
                   y: tempCtoCurUnit(tempC),
                   tempC: tempC,
                })
+               chart.options.data[i].legendText = 
+                  tempC != null ? tempCtoCurUnit(tempC) + "°" : "N/A"
             }
          }
 
@@ -120,7 +200,7 @@ function connectWebsocket() {
 
          chart.render();
       } else if (data.cmd == "unit_update") {
-         ibbqUnitCelcius.checked = (data.unit == "C")
+         $(ibbqUnitCelcius).bootstrapToggle((data.unit == "C") ? "on" : "off")
          updateUnit()
       }
    }
@@ -128,16 +208,17 @@ function connectWebsocket() {
 
 document.onreadystatechange = function() {
    if (document.readyState === "complete") {
-      serverReconnecting = document.getElementById("server_reconnecting");
-      ibbqConnectedDot = document.querySelector("#ibbq_connected .dot");
-      ibbqBatteryValue = document.querySelector("#ibbq_battery .value");
-      ibbqUnitCelcius = document.getElementById("ibbq_unit_celcius");
-      ibbqUnitCelcius.onclick = setUnit
+      serverDisconnectedBanner = document.getElementById("server-disconnected-banner");
+      ibbqConnection = document.querySelector("#ibbq-connection");
+      ibbqBattery = document.querySelector("#ibbq-battery");
+      ibbqUnitCelcius = document.getElementById("ibbq-unit-celcius");
+      ibbqUnitCelcius.onchange = setUnit
 
       var options = {
          animationEnabled: true,
          legend: {
-            cursor:"pointer",
+            cursor: "pointer",
+            verticalAlign: "top",
             fontSize: 20,
          },
          toolTip: {
@@ -180,7 +261,15 @@ document.onreadystatechange = function() {
          },
          data: [],
       };
-      chart = new CanvasJS.Chart("chart_container", options);
+      chart = new CanvasJS.Chart("graph", options);
+
+      // Workaround graph not rendering correct size initially
+      document.querySelector('button[aria-controls="graph"]').addEventListener(
+         'shown.bs.tab',
+         function(event) {
+            chart.render();
+         }
+      );
 
       connectWebsocket();
    }

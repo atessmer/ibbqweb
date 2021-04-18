@@ -1,31 +1,95 @@
-<!DOCTYPE html>
-<html>
-<head>
-   <title>iBBQ Web</title>
-   <link rel="stylesheet" type="text/css" href="assets/css/styles.css">
-   <!-- barbecue by Rutmer Zijlstra from the Noun Project -->
-   <link rel="shortcut icon" type="image/png" href="assets/images/favicon.png"/>
-   <script type="text/javascript" src="assets/js/lib/canvasjs-3.2.13/canvasjs.min.js"></script>
-   <script type="text/javascript" src="assets/js/ibbq.js"></script>
-</head>
-<body>
-   <div id="server_reconnecting">Reconnecting to server...</div>
-   <div id="ibbq_connected">
-      Connected: <span class="dot"/>
-   </div>
-   <div id="ibbq_battery">
-      Battery: <span class="value">Unknown</span>
-   </div>
-   <div>
-      Unit:
-      <label class="switch">
-         <input type="checkbox" name="ibbq_unit_celcius" id="ibbq_unit_celcius">
-         <span class="slider round">
-            <span class="unitlabel">C</span>
-            <span class="unitlabel">F</span>
-         </span>
-      </label>
-   </div>
-   <div id="chart_container"></div>
-</body>
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>iBBQ Web</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="assets/lib/jquery-3.6.0/jquery.slim.min.js"></script>
+    <link rel="stylesheet" href="assets/lib/bootstrap-5.0.0-beta3/bootstrap.min.css">
+    <script src="assets/lib/bootstrap-5.0.0-beta3/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="assets/lib/bootstrap4-toggle-3.6.1/bootstrap4-toggle.min.css">
+    <script src="assets/lib/bootstrap4-toggle-3.6.1/bootstrap4-toggle.min.js"></script>
+    <link rel="stylesheet" href="assets/lib/bootstrap-icons-1.4.1/bootstrap-icons.css" >
+    <script src="assets/lib/canvasjs-3.2.13/canvasjs.min.js"></script>
+    <link href="assets/lib/fonts/digital-7/digital-7.css" rel="stylesheet">
+    <script src="assets/js/ibbq.js"></script>
+    <link href="assets/css/styles.css" rel="stylesheet">
+    <!-- barbecue by Rutmer Zijlstra from the Noun Project -->
+    <link rel="shortcut icon" type="image/png" href="assets/images/favicon.png"/>
+  </head>
+  <body>
+    <div class="container-fluid h-100 p-0 d-flex flex-column">
+      <div id="server-disconnected-banner" class="flex-shrink-0">
+        <div class="p-1">Reconnecting to Server...</div>
+      </div>
+      <nav class="navbar navbar-expand navbar-dark bg-dark pb-0 mb-2 flex-shrink-0">
+        <div class="container-fluid">
+          <a class="navbar-brand" href="#">
+            <!-- barbecue by Rutmer Zijlstra from the Noun Project -->
+            <img src="assets/images/favicon.png" alt="" width="24" height="24" class="d-inline-block align-text-top">
+            <div class="d-none d-md-inline">iBBQ Web</div>
+          </a>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+          </button>
+          <div class="collapse navbar-collapse" id="navbarSupportedContent">
+            <ul class="navbar-nav nav nav-tabs me-auto mb-0" id="pageTab" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#probes" type="button" role="tab" aria-controls="probes" aria-selected="true">Probes</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#graph" type="button" role="tab" aria-controls="graph" aria-selected="false">Graph</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#settings" type="button" role="tab" aria-controls="graph" aria-selected="false">Settings</button>
+              </li>
+            </ul>
+            <span class="navbar-text bi bi-battery-half me-2 me-md-3" id="ibbq-battery">--</span>
+            <span class="navbar-text" id="ibbq-connection">
+              <span class="dot"/></span>
+              <span class="d-none d-md-inline" id="ibbq-connection-text"/></span>
+            </span>
+          </div>
+        </div>
+      </nav>
+      <div class="tab-content flex-grow-1 pb-2" id="pageTabContent">
+        <div class="tab-pane fade show active" id="probes" role="tabpanel" aria-labelledby="probes-tab">
+          <div class="container">
+            <div class="row row-cols-1 row-cols-md-2" id="probe-list"></div>
+          </div>
+        </div>
+        <div class="tab-pane fade" id="graph" role="tabpanel" aria-labelledby="graph-tab"></div>
+        <div class="tab-pane fade ms-3 me-3 mb-2" id="settings" role="tabpanel" aria-labelledby="setting-tab">
+          <div class="row mb=3">
+            <label class="col-3 col-md-2 col-form-label">Unit</label>
+            <div class="col-9 col-md-10">
+              <input type="checkbox" id="ibbq-unit-celcius" data-toggle="toggle" data-on="Celcius" data-off="Fahrenheit" data-onstyle="secondary" data-offstyle="secondary">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+  <template id="probe-container-template">
+    <div class="col probe-container" id="probe-container-{idx}">
+      <div class="row m-1 p-1 rounded-3 text-dark">
+        <div class="col-2 p-0 probe-idx">
+          <span class="dot">{idx}</span>
+        </div>
+        <div class="col-8 probe-temp">
+          <div class="row row-cols-1">
+            <div class="col probe-temp-current">{temp}</div>
+          </div>
+          <div class="row row-cols-1">
+            <div class="col probe-temp-target">{target-temp}</div>
+          </div>
+        </div>
+        <div class="col-2 probe-settings">
+          <a href="#" class="text-dark">
+            <i class="bi bi-gear-fill"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+  </template>
 </html>
