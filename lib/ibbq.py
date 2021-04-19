@@ -138,11 +138,20 @@ class iBBQ:
       if not self.connected:
          raise RuntimeError("Device not connected")
 
-      await self._client.write_gatt_char(
-         self._characteristics[Characteristics.SettingsUpdate.value],
-         data,
-         response=False
-      )
+      try:
+         await self._client.write_gatt_char(
+            self._characteristics[Characteristics.SettingsUpdate.value],
+            data,
+            response=False
+         )
+      except bleak.exc.BleakDBusError as e:
+         if e.dbus_error == "org.bluez.Error.InProgress":
+            # Occasionally hitting this, though the write succeeds.
+            # This may be caused by bluez < 5.51:
+            # https://bleak.readthedocs.io/en/latest/api.html#bleak.backends.bluezdbus.client.BleakClientBlueZDBus.write_gatt_char
+            pass
+         else:
+            raise
 
    async def setUnitCelcius(self):
       self._celcius = True
