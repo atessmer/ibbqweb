@@ -36,11 +36,11 @@ PairKey = b"\x21\x07\x06\x05\x04\x03\x02\x01\xb8\x22\x00\x00\x00\x00\x00"
 class iBBQ:
    def __init__(self, probe_count=0):
       self._celcius = False
-      self._connected = False
       self._device = None
       self._characteristics = {}
       self._currentTempsC = [None] * probe_count
       self._currentBatteryLevel = None
+      self._client = None
 
    @property
    def address(self):
@@ -52,7 +52,7 @@ class iBBQ:
 
    @property
    def connected(self):
-      return self._connected
+      return self._client is not None and bool(self._client.is_connected)
 
    @property
    def probeTemperaturesC(self):
@@ -61,9 +61,6 @@ class iBBQ:
    @property
    def batteryLevel(self):
       return self._currentBatteryLevel
-
-   def _cbDisconnect(self, client):
-      self._connected = False
 
    async def connect(self, address=None):
       if self._device is None:
@@ -83,8 +80,7 @@ class iBBQ:
       elif address is not None and self._device.address != address:
          raise NotImplementedError("Changing BLE address not supported")
 
-      self._client = bleak.BleakClient(self._device,
-                                       disconnected_callback=self._cbDisconnect)
+      self._client = bleak.BleakClient(self._device)
       await self._client.connect()
 
       services = await self._client.get_services()
@@ -98,7 +94,6 @@ class iBBQ:
          PairKey,
          response=True
       )
-      self._connected = True
 
       # Sync settings to device
       if self._celcius:
