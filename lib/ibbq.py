@@ -86,6 +86,7 @@ class iBBQ:
       services = await self._client.get_services()
       for characteristic in services.characteristics.values():
         # Time portion of UUID is characteristic key
+        print(characteristic)
         char_uuid = UUID(characteristic.uuid)
         self._characteristics[char_uuid.time] = characteristic
 
@@ -196,6 +197,7 @@ class iBBQ:
 
    @staticmethod
    def _tempCbtof(probeData):
+      """Temperature (Celcius) binary to float"""
       rawTemp = struct.unpack('<H', probeData)[0]
       if rawTemp == 0xfff6:
          return None
@@ -204,6 +206,7 @@ class iBBQ:
 
    @staticmethod
    def _tempCftob(tempC):
+      """Temperature (Celcius) float to binary"""
       if tempC == None:
          rawTemp = 0xfff6
       else:

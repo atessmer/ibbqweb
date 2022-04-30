@@ -4,6 +4,7 @@ var ibbqConnection;
 var ibbqBattery;
 var ibbqUnitCelcius;
 var chart;
+
 // Match .probe-container:nth-child(...) .probe-idx .dot
 var probeColors = [
   "#357bcc",
@@ -11,32 +12,8 @@ var probeColors = [
   "#d4872a",
   "#bdb320",
 ]
-
-function CreateElement(tag, props) {
-   var e = $('<' + tag + '>');
-   for (var k in props) {
-      switch(k) {
-         case 'class':
-            e.addClass(props[k]);
-            break;
-         case 'change':
-         case 'click':
-         case 'keyup':
-            e.on(k, props[k]);
-            break;
-         case 'textContent':
-            e.text(props[k]);
-            break;
-         case 'htmlContent':
-            e.html(props[k]);
-            break;
-         default:
-            e.attr(k, props[k]);
-            break;
-      }
-   }
-   return e;
-}
+var STRIPLINE_TEMP_OPACITY = 0.5
+var STRIPLINE_RANGE_OPACITY = 0.15
 
 function CtoF(temp) {
    return (temp * 9 / 5) + 32
@@ -78,6 +55,129 @@ function updateUnit() {
       chart.options.axisY.maximum = 310
    } else {
       chart.options.axisY.maximum = 600
+   }
+   chart.render()
+}
+
+// TODO: support Celcius presets too
+function updatePreset() {
+   var probeTempMin = document.getElementById('probe-temp-min')
+   var probeTempMax = document.getElementById('probe-temp-max')
+
+   var preset = document.querySelector('#probe-preset option:checked')
+   if (preset.value == 'custom.temp') {
+      probeTempMin.disabled = true
+      probeTempMin.value = null
+      probeTempMax.disabled = false
+   } else if (preset.value == 'custom.range') {
+      probeTempMin.disabled = false
+      probeTempMax.disabled = false
+   } else {
+      probeTempMin.disabled = true
+      probeTempMin.value = preset.getAttribute('data-ibbq-target-min')
+      probeTempMax.disabled = true
+      probeTempMax.value = preset.getAttribute('data-ibbq-target-max')
+   }
+}
+
+function clearProbeTarget() {
+   var probeIdx = document.getElementById('probe-settings-index').value
+   var probeContainer = document.getElementById('probe-container-' + probeIdx)
+   probeContainer.removeAttribute('data-ibbq-preset')
+   probeContainer.removeAttribute('data-ibbq-temp-min')
+   probeContainer.removeAttribute('data-ibbq-temp-max')
+
+   // TODO: Send clear to server
+
+   bootstrap.Modal.getInstance(
+      document.getElementById('probeSettingsModal')
+   ).hide()
+
+   updateProbeTempTargetText(probeIdx)
+}
+
+function saveProbeTarget() {
+   var probeIdx = document.getElementById('probe-settings-index').value
+   var probeContainer = document.getElementById('probe-container-' + probeIdx)
+
+   var presetInput = document.getElementById('probe-preset')
+   var preset = presetInput.value
+   if (preset == '_invalid_') {
+      presetInput.classList.add('is-invalid')
+      return
+   } else {
+      presetInput.classList.remove('is-invalid')
+   }
+
+   var valid = true
+   var minInput = document.getElementById('probe-temp-min')
+   var min = parseInt(minInput.value)
+   if (!minInput.disabled && isNaN(min)) {
+      minInput.classList.add('is-invalid')
+      valid = false
+   } else {
+      minInput.classList.remove('is-invalid')
+   }
+
+   var maxInput = document.getElementById('probe-temp-max')
+   var max = parseInt(maxInput.value)
+   if (isNaN(max) || (!isNaN(min) && min >= max)) {
+      maxInput.classList.add('is-invalid')
+      valid = false
+   } else {
+      maxInput.classList.remove('is-invalid')
+   }
+
+   if (valid) {
+      probeContainer.setAttribute('data-ibbq-preset', preset)
+      if (isNaN(min)) {
+         probeContainer.removeAttribute('data-ibbq-temp-min')
+      } else {
+         probeContainer.setAttribute('data-ibbq-temp-min', min)
+      }
+      probeContainer.setAttribute('data-ibbq-temp-max', max)
+      bootstrap.Modal.getInstance(
+         document.getElementById('probeSettingsModal')
+      ).hide()
+
+      updateProbeTempTarget(probeIdx)
+
+      // TODO: Send set to server
+   }
+}
+
+function updateProbeTempTarget(probeIdx) {
+   var probeContainer = document.getElementById('probe-container-' + probeIdx)
+   var min = parseInt(probeContainer.getAttribute('data-ibbq-temp-min'))
+   var max = parseInt(probeContainer.getAttribute('data-ibbq-temp-max'))
+
+   /*
+    * Update temp-target text on Probes tab
+    */
+   probeContainer.querySelector('.probe-temp-target').innerHTML =
+      isNaN(max) ? '&nbsp;' :
+      isNaN(min) ? max + '&deg;F' :
+                   min + '&deg;F ~ ' + max + '&deg;F'
+
+   /*
+    * Update stripline on chart
+    */
+   var sl = chart.options.axisY.stripLines[probeIdx]
+   if (isNaN(max)) {
+      delete sl.value
+      delete sl.startValue
+      delete sl.endValue
+      sl.opacity = 0
+   } else if (isNaN(min)) {
+      sl.value = max
+      delete sl.startValue
+      delete sl.endValue
+      sl.opacity = STRIPLINE_TEMP_OPACITY
+   } else {
+      delete sl.value
+      sl.startValue = min
+      sl.endValue = max
+      sl.opacity = STRIPLINE_RANGE_OPACITY
    }
    chart.render()
 }
@@ -153,31 +253,54 @@ function connectWebsocket() {
          var now = new Date()
          for (var i = 0; i < data.probeTemperaturesC.length; i++) {
             var tempC = data.probeTemperaturesC[i]
-            
+
             var probecontainer = document.getElementById('probe-container-' + i)
             if (probecontainer == null) {
                var template = document.getElementById('probe-container-template')
                probecontainer = template.content.firstElementChild.cloneNode(true)
 
                probecontainer.id = 'probe-container-' + i
-               probecontainer.querySelector('.probe-idx .dot').textContent = i
+               probecontainer.setAttribute('data-ibbq-probe-idx', i)
+               probecontainer.querySelector('.probe-idx .dot').textContent = (i + 1)
                document.getElementById('probe-list').append(probecontainer);
             }
 
             probecontainer.querySelector('.probe-temp-current').innerHTML =
-               (tempC != null ? tempCtoCurUnit(tempC) + "&deg;" : "--")
+               tempC === null ? '--' : tempCtoCurUnit(tempC) + "&deg;"
 
             if (chart.options.data.length < i + 1) {
+               var probeColor = i <= probeColors.length ? probeColors[i] : "#000"
                chart.options.data.push({
                   type: "line",
                   markerType: "none",
                   name: "Probe " + (i+1),
                   showInLegend: true,
                   legendText: "N/A",
-                  color: i <= probeColors.length ? probeColors[i] : "#000",
+                  color: probeColor,
                   dataPoints: [],
                })
+
+               chart.options.axisY.stripLines.push({
+                  value: null,
+                  opacity: 0,
+                  color: probeColor,
+                  labelFontColor: probeColor,
+                  label: "Probe " + (i+1) + " Target",
+                  labelBackgroundColor: 'transparent',
+                  labelFormatter: function(e) {
+                     var sl = e.stripLine
+                     if (sl.startValue !== null && sl.endValue !== null) {
+                        return sl.startValue + '° ~ ' + sl.endValue + '°'
+                     } else if (sl.value !== null) {
+                        return sl.value + '°'
+                     } else {
+                        return ''
+                     }
+                  },
+               })
             }
+
+            updateProbeTempTarget(i)
 
             if (tempC != null || data.connected) {
                chart.options.data[i].dataPoints.push({
@@ -185,7 +308,7 @@ function connectWebsocket() {
                   y: tempCtoCurUnit(tempC),
                   tempC: tempC,
                })
-               chart.options.data[i].legendText = 
+               chart.options.data[i].legendText =
                   tempC != null ? tempCtoCurUnit(tempC) + "°" : "N/A"
             }
          }
@@ -213,6 +336,42 @@ document.onreadystatechange = function() {
       ibbqBattery = document.querySelector("#ibbq-battery");
       ibbqUnitCelcius = document.getElementById("ibbq-unit-celcius");
       ibbqUnitCelcius.onchange = setUnit
+
+      document.getElementById('probeSettingsModal').addEventListener(
+         'show.bs.modal', function(event) {
+            var probeContainer = event.relatedTarget
+            while (!probeContainer.classList.contains('probe-container')) {
+               probeContainer = probeContainer.parentElement
+            }
+            var probeIdx = probeContainer.getAttribute('data-ibbq-probe-idx')
+
+            document.getElementById('probe-settings-index').value = probeIdx
+
+            var preset = probeContainer.getAttribute('data-ibbq-preset') || '0'
+            document.getElementById('probe-preset').value = preset
+
+            document.getElementById('probe-temp-min').value =
+               probeContainer.getAttribute('data-ibbq-temp-min')
+            document.getElementById('probe-temp-max').value =
+               probeContainer.getAttribute('data-ibbq-temp-max')
+         }
+      )
+
+      document.getElementById('probe-preset').addEventListener(
+         'change', function(event) {
+            updatePreset()
+         }
+      )
+      document.getElementById('probeSettingsClear').addEventListener(
+         'click', function(event) {
+            clearProbeTarget()
+         }
+      )
+      document.getElementById('probeSettingsSave').addEventListener(
+         'click', function(event) {
+            saveProbeTarget()
+         }
+      )
 
       var options = {
          animationEnabled: true,
@@ -258,6 +417,7 @@ document.onreadystatechange = function() {
             logarithmic: false,
             logarithmBase: 10,
             minimum: 0,
+            stripLines: [],
          },
          data: [],
       };

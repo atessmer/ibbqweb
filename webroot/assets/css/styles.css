@@ -53,15 +53,16 @@ body {
 
 .probe-container>.row {
   background-color: #ddd;
-  height: 150px;
 }
 
 .probe-idx .dot {
   color: #fff;
-  width: 24px;
-  height: 24px;
+  width: 36px;
+  height: 36px;
   text-align: center;
   background-color: #000;
+  font-size: 1.5em;
+  line-height: 36px;
 }
 
 .probe-container:nth-child(1) .probe-idx .dot {
@@ -82,9 +83,17 @@ body {
   line-height: 1.2;
   text-align: center;
 }
+
 .probe-temp-current {
   font-size: 5em;
+  line-height: 1;
 }
+@media (min-width: 768px) and (max-width: 992px) {
+   .probe-temp-current {
+      font-size: 3em;
+   }
+}
+
 .probe-temp-target {
   font-size: 2em;
   font-style: italic;
