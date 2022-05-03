@@ -4,6 +4,7 @@ import aiohttp.web
 import argparse
 import asyncio
 import datetime
+import json
 import os.path
 
 import lib.config
@@ -63,67 +64,84 @@ def websocketHandlerFactory(ibbq, cfg):
       ws = aiohttp.web.WebSocketResponse()
       await ws.prepare(request)
 
-      try:
-         clientUnit = ibbq.unit
-         payload = {
-            "cmd": "unit_update",
-            "unit": clientUnit,
-         }
-         await ws.send_json(payload)
+      clientUnit = ibbq.unit
+      payload = {
+         "cmd": "unit_update",
+         "unit": clientUnit,
+      }
+      await ws.send_json(payload)
 
-         fullHistory = True
-         while True:
-            if ibbq.unit != clientUnit:
-               clientUnit = ibbq.unit
-               payload = {
-                  "cmd": "unit_update",
-                  "unit": clientUnit,
-               }
-               await ws.send_json(payload)
+      fullHistory = True
+      while True:
+         if ibbq.unit != clientUnit:
+            clientUnit = ibbq.unit
+            payload = {
+               "cmd": "unit_update",
+               "unit": clientUnit,
+            }
+            await ws.send_json(payload)
 
-            reading = ibbq.probeReading
-            if reading is not None:
-               cfg.probe_count = len(reading["probes"])
-               payload = {
-                  "cmd": "state_update",
-                  "connected": ibbq.connected,
-                  "batteryLevel": ibbq.batteryLevel,
-                  "fullHistory": fullHistory,
-               }
+         reading = ibbq.probeReading
+         if reading is not None:
+            cfg.probe_count = len(reading["probes"])
+            payload = {
+               "cmd": "state_update",
+               "connected": ibbq.connected,
+               "batteryLevel": ibbq.batteryLevel,
+               "fullHistory": fullHistory,
+            }
 
-               if fullHistory:
-                  fullHistory = False
-                  payload.update({
-                     "probeReadings": [
-                        {
-                           "ts": e["timestamp"].strftime(TS_FMT),
-                           "probes": e["probes"],
-                        } for e in ibbq.probeReadingsAll
-                     ],
-                  })
-               else:
-                  payload.update({
-                     "probeReadings": [
-                        {
-                           "ts": reading["timestamp"].strftime(TS_FMT),
-                           "probes": reading["probes"],
-                        }
-                     ],
-                  })
+            if fullHistory:
+               fullHistory = False
+               payload.update({
+                  "probeReadings": [
+                     {
+                        "ts": e["timestamp"].strftime(TS_FMT),
+                        "probes": e["probes"],
+                     } for e in ibbq.probeReadingsAll
+                  ],
+               })
+            else:
+               payload.update({
+                  "probeReadings": [
+                     {
+                        "ts": reading["timestamp"].strftime(TS_FMT),
+                        "probes": reading["probes"],
+                     }
+                  ],
+               })
 
-               await ws.send_json(payload)
+            await ws.send_json(payload)
 
+         recv_task = asyncio.create_task(ws.receive())
+         update_task = asyncio.create_task(ibbq.waitForChange())
+
+         done, pending = await asyncio.wait(
+            [recv_task, update_task],
+            return_when=asyncio.FIRST_COMPLETED
+         )
+
+         for task in done:
+            if task == recv_task:
+               msg = await task
+               if msg.type == aiohttp.WSMsgType.CLOSE:
+                  return ws
+
+               if msg.type != aiohttp.WSMsgType.TEXT:
+                  raise TypeError(
+                     "Received message %d:%s is not WSMsgType.TEXT" %
+                     (msg.type, msg.data)
+                  )
+               await websocketHandleCmd(ibbq, cfg, json.loads(msg.data))
+            else:
+               await task
+
+         for task in pending:
+            task.cancel()
             try:
-               data = await ws.receive_json(timeout=1)
-               await websocketHandleCmd(ibbq, cfg, data)
-            except (asyncio.TimeoutError, TypeError):
+               await task
+            except asyncio.CancelledError:
                pass
-      except (ConnectionResetError, asyncio.CancelledError, RuntimeError) as e:
-         if type(e) is RuntimeError and str(e) != "WebSocket connection is closed.":
-            # Not an expected RuntimeError, re-raise
-            raise
-         # Connection closed by peer, or daemon is exiting
-         return ws
    return websocketHandler
 
 @aiohttp.web.middleware

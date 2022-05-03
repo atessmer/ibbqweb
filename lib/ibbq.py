@@ -36,12 +36,14 @@ PairKey = b"\x21\x07\x06\x05\x04\x03\x02\x01\xb8\x22\x00\x00\x00\x00\x00"
 
 class iBBQ:
    def __init__(self, probe_count=0, maxhistory=(60*60*8)):
+      self._connected = False
       self._celcius = False
       self._device = None
       self._characteristics = {}
       self._readings = collections.deque(maxlen=maxhistory) # temps stored in celcius
       self._currentBatteryLevel = None
       self._client = None
+      self._changeEvent = asyncio.Event()
 
    @property
    def address(self):
@@ -53,7 +55,7 @@ class iBBQ:
 
    @property
    def connected(self):
-      return self._client is not None and bool(self._client.is_connected)
+      return self._connected
 
    @property
    def probeReading(self):
@@ -70,6 +72,17 @@ class iBBQ:
    @property
    def batteryLevel(self):
       return self._currentBatteryLevel
+
+   def _notifyChange(self):
+      self._changeEvent.set()
+      self._changeEvent.clear()
+
+   async def waitForChange(self):
+      await self._changeEvent.wait()
+
+   def _cbDisconnected(self, client):
+      self._connected = False
+      self._notifyChange()
 
    async def connect(self, address=None):
       if self._device is None:
@@ -89,7 +102,7 @@ class iBBQ:
       elif address is not None and self._device.address != address:
          raise NotImplementedError("Changing BLE address not supported")
 
-      self._client = bleak.BleakClient(self._device)
+      self._client = bleak.BleakClient(self._device, disconnected_callback=self._cbDisconnected)
       await self._client.connect()
 
       services = await self._client.get_services()
@@ -105,13 +118,15 @@ class iBBQ:
          response=True
       )
 
+      self._connected = True
+
       # Sync settings to device
       if self._celcius:
          await self._setUnit(SettingsData.SetUnitCelcius.value)
       else:
          await self._setUnit(SettingsData.SetUnitFarenheit.value)
 
-      #print("Paired")
+      self._notifyChange()
 
    async def subscribe(self):
       if not self.connected:
@@ -162,6 +177,7 @@ class iBBQ:
             pass
          else:
             raise
+      self._notifyChange()
 
    async def setUnitCelcius(self):
       self._celcius = True
@@ -231,6 +247,7 @@ class iBBQ:
             for probeData in [data[i:i+2] for i in range(0, len(data), 2)]
         ],
       })
+      self._notifyChange()
 
    def _cbSettingsNotify(self, handle, data):
       #print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
