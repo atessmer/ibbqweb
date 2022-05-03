@@ -1,6 +1,7 @@
 import asyncio
 import bleak
 import binascii
+import collections
 import datetime
 import enum
 import struct
@@ -34,11 +35,12 @@ PairKey = b"\x21\x07\x06\x05\x04\x03\x02\x01\xb8\x22\x00\x00\x00\x00\x00"
 
 
 class iBBQ:
-   def __init__(self, probe_count=0):
+   def __init__(self, probe_count=0, maxhistory=(60*60*8)):
       self._celcius = False
       self._device = None
       self._characteristics = {}
-      self._currentTempsC = [None] * probe_count
+      self._probeCount = probe_count
+      self._tempsC = collections.deque(maxlen=maxhistory)
       self._currentBatteryLevel = None
       self._client = None
 
@@ -56,7 +58,13 @@ class iBBQ:
 
    @property
    def probeTemperaturesC(self):
-      return self._currentTempsC
+      if len(self._tempsC):
+         return self._tempsC[-1]['probes']
+      return [None] * self._probeCount
+
+   @property
+   def probeTemperaturesCHistory(self):
+      return list(self._tempsC)
 
    @property
    def batteryLevel(self):
@@ -215,14 +223,13 @@ class iBBQ:
 
    def _cbRealtimeTempNotify(self, handle, data):
       # int16 temperature per probe, always celcius
-      #print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
-      self._currentTempsC = [self._tempCbtof(probeData)
-                            for probeData in [data[i:i+2] for i in range(0, len(data), 2)]]
-      #for temp in self._currentTempsC:
-      #   if temp is None:
-      #      print("Probe disconnected")
-      #   else:
-      #      print(u"Probe temp: %.1f\N{DEGREE SIGN}C" % temp)
+      self._tempsC.append({
+        'timestamp': datetime.datetime.now(),
+        'probes': [
+            self._tempCbtof(probeData)
+            for probeData in [data[i:i+2] for i in range(0, len(data), 2)]
+        ],
+      })
 
    def _cbSettingsNotify(self, handle, data):
       #print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)

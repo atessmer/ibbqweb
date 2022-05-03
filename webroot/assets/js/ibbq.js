@@ -182,6 +182,76 @@ function updateProbeTempTarget(probeIdx) {
    chart.render()
 }
 
+function appendChartData(ts, probeTemperaturesC) {
+   for (var i = 0; i < probeTemperaturesC.length; i++) {
+      var tempC = probeTemperaturesC[i]
+
+      var probecontainer = document.getElementById('probe-container-' + i)
+      if (probecontainer == null) {
+         var template = document.getElementById('probe-container-template')
+         probecontainer = template.content.firstElementChild.cloneNode(true)
+
+         probecontainer.id = 'probe-container-' + i
+         probecontainer.setAttribute('data-ibbq-probe-idx', i)
+         probecontainer.querySelector('.probe-idx .dot').textContent = (i + 1)
+         document.getElementById('probe-list').append(probecontainer);
+      }
+
+      probecontainer.querySelector('.probe-temp-current').innerHTML =
+         tempC === null ? '--' : tempCtoCurUnit(tempC) + "&deg;"
+
+      if (chart.options.data.length < i + 1) {
+         var probeColor = i <= probeColors.length ? probeColors[i] : "#000"
+         chart.options.data.push({
+            type: "line",
+            markerType: "none",
+            name: "Probe " + (i+1),
+            showInLegend: true,
+            legendText: "N/A",
+            color: probeColor,
+            dataPoints: [],
+         })
+
+         chart.options.axisY.stripLines.push({
+            value: null,
+            opacity: 0,
+            color: probeColor,
+            labelFontColor: probeColor,
+            label: "Probe " + (i+1) + " Target",
+            labelBackgroundColor: 'transparent',
+            labelFormatter: function(e) {
+               var sl = e.stripLine
+               if (sl.startValue !== null && sl.endValue !== null) {
+                  return sl.startValue + '° ~ ' + sl.endValue + '°'
+               } else if (sl.value !== null) {
+                  return sl.value + '°'
+               } else {
+                  return ''
+               }
+            },
+         })
+      }
+
+      if (tempC != null) {
+         chart.options.data[i].dataPoints.push({
+            x: ts,
+            y: tempCtoCurUnit(tempC),
+            tempC: tempC,
+         })
+         chart.options.data[i].legendText =
+            tempC != null ? tempCtoCurUnit(tempC) + "°" : "N/A"
+      }
+   }
+
+   if (ts >= chart.options.axisX.maximum) {
+      // Increase by 25%
+      var min = chart.options.axisX.minimum.getTime()
+      var max = chart.options.axisX.maximum.getTime()
+      var newmax = new Date(min + ((max-min) * 1.25))
+      chart.options.axisX.maximum = new Date(newmax)
+   }
+}
+
 function connectWebsocket() {
    ws = new WebSocket("ws://" + window.location.host + "/ws")
 
@@ -207,7 +277,32 @@ function connectWebsocket() {
    ws.onmessage = function (event) {
       data = JSON.parse(event.data)
 
-      if (data.cmd == "state_update") {
+      if (data.cmd == "temp_history") {
+         /*
+          * Reset chart data
+          */
+         chart.options.data = [];
+         chart.options.axisY.stripLines = [];
+         var xMin = new Date();
+         for (var i = 0; i < data.probeHistory.length; i++) {
+            if (data.probeHistory[i].probes.some(temp => temp != null)) {
+               xMin = new Date(data.probeHistory[i].ts);
+               break;
+            }
+         }
+         var xMax = new Date(xMin.getTime() + (10 * 60 * 1000)); // +10 min
+         chart.options.axisX.minimum = xMin;
+         chart.options.axisX.maximum = xMax;
+
+         /*
+          * Populate chart with historic data from server
+          */
+         for (var i = 0; i < data.probeHistory.length; i++) {
+            var history = data.probeHistory[i];
+            appendChartData(new Date(history.ts), history.probes);
+         }
+         chart.render();
+      } else if (data.cmd == "state_update") {
          /*
           * Update connection status
           */
@@ -251,77 +346,13 @@ function connectWebsocket() {
           * Update probe data (probe and chart tabs)
           */
          var now = new Date()
-         for (var i = 0; i < data.probeTemperaturesC.length; i++) {
-            var tempC = data.probeTemperaturesC[i]
-
-            var probecontainer = document.getElementById('probe-container-' + i)
-            if (probecontainer == null) {
-               var template = document.getElementById('probe-container-template')
-               probecontainer = template.content.firstElementChild.cloneNode(true)
-
-               probecontainer.id = 'probe-container-' + i
-               probecontainer.setAttribute('data-ibbq-probe-idx', i)
-               probecontainer.querySelector('.probe-idx .dot').textContent = (i + 1)
-               document.getElementById('probe-list').append(probecontainer);
+         if (data.connected) {
+            appendChartData(new Date(), data.probeTemperaturesC)
+            for (var i = 0; i < data.probeTemperaturesC.length; i++) {
+               updateProbeTempTarget(i)
             }
-
-            probecontainer.querySelector('.probe-temp-current').innerHTML =
-               tempC === null ? '--' : tempCtoCurUnit(tempC) + "&deg;"
-
-            if (chart.options.data.length < i + 1) {
-               var probeColor = i <= probeColors.length ? probeColors[i] : "#000"
-               chart.options.data.push({
-                  type: "line",
-                  markerType: "none",
-                  name: "Probe " + (i+1),
-                  showInLegend: true,
-                  legendText: "N/A",
-                  color: probeColor,
-                  dataPoints: [],
-               })
-
-               chart.options.axisY.stripLines.push({
-                  value: null,
-                  opacity: 0,
-                  color: probeColor,
-                  labelFontColor: probeColor,
-                  label: "Probe " + (i+1) + " Target",
-                  labelBackgroundColor: 'transparent',
-                  labelFormatter: function(e) {
-                     var sl = e.stripLine
-                     if (sl.startValue !== null && sl.endValue !== null) {
-                        return sl.startValue + '° ~ ' + sl.endValue + '°'
-                     } else if (sl.value !== null) {
-                        return sl.value + '°'
-                     } else {
-                        return ''
-                     }
-                  },
-               })
-            }
-
-            updateProbeTempTarget(i)
-
-            if (tempC != null || data.connected) {
-               chart.options.data[i].dataPoints.push({
-                  x: now,
-                  y: tempCtoCurUnit(tempC),
-                  tempC: tempC,
-               })
-               chart.options.data[i].legendText =
-                  tempC != null ? tempCtoCurUnit(tempC) + "°" : "N/A"
-            }
+            chart.render();
          }
-
-         if (now >= chart.options.axisX.maximum) {
-            // Increase by 25%
-            var min = chart.options.axisX.minimum.getTime()
-            var max = chart.options.axisX.maximum.getTime()
-            var newmax = new Date(min + ((max-min) * 1.25))
-            chart.options.axisX.maximum = new Date(newmax)
-         }
-
-         chart.render();
       } else if (data.cmd == "unit_update") {
          $(ibbqUnitCelcius).bootstrapToggle((data.unit == "C") ? "on" : "off")
          updateUnit()

@@ -69,6 +69,17 @@ def websocketHandlerFactory(ibbq, cfg):
           }
           await ws.send_json(payload)
 
+          payload = {
+             "cmd": "temp_history",
+             "probeHistory": [
+                {
+                   "ts": e["timestamp"].strftime('%m-%d-%y %H:%M:%S'),
+                   "probes": e["probes"],
+                } for e in ibbq.probeTemperaturesCHistory
+             ],
+          }
+          await ws.send_json(payload)
+
           while True:
              cfg.probe_count = len(ibbq.probeTemperaturesC)
              payload = {
