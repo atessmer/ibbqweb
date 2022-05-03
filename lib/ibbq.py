@@ -117,6 +117,7 @@ class iBBQ:
          PairKey,
          response=True
       )
+      await asyncio.sleep(0.1) # XXX: Workaround org.bluez.Error.InProgress error
 
       self._connected = True
 
@@ -141,6 +142,7 @@ class iBBQ:
          SettingsData.EnableRealtimeData.value,
          response=False
       )
+      await asyncio.sleep(0.1) # XXX: Workaround org.bluez.Error.InProgress error
 
       await self._client.start_notify(
          self._characteristics[Characteristics.SettingsNotify.value],
@@ -151,12 +153,14 @@ class iBBQ:
          SettingsData.EnableBatteryData.value,
          response=False
       )
+      await asyncio.sleep(0.1) # XXX: Workaround org.bluez.Error.InProgress error
 
       await self._client.write_gatt_char(
          self._characteristics[Characteristics.SettingsUpdate.value],
          SettingsData.Unknown1.value,
          response=False
       )
+      await asyncio.sleep(0.1) # XXX: Workaround org.bluez.Error.InProgress error
 
 
    async def _setUnit(self, data):
@@ -169,6 +173,7 @@ class iBBQ:
             data,
             response=False
          )
+         await asyncio.sleep(0.1) # XXX: Workaround org.bluez.Error.InProgress error
       except bleak.exc.BleakDBusError as e:
          if e.dbus_error == "org.bluez.Error.InProgress":
             # Occasionally hitting this, though the write succeeds.
@@ -206,6 +211,7 @@ class iBBQ:
          data,
          response=False
       )
+      await asyncio.sleep(0.1) # XXX: Workaround org.bluez.Error.InProgress error
 
    async def silanceAlarm(self, probe=0xff):
       if not self.connected:
@@ -218,7 +224,8 @@ class iBBQ:
          self._characteristics[Characteristics.SettingsUpdate.value],
          struct.pack("6b", 0x04, probe, 0x00, 0x00, 0x00, 0x00),
          response=False
-     )
+      )
+      await asyncio.sleep(0.1) # XXX: Workaround org.bluez.Error.InProgress error
 
    @staticmethod
    def _tempCbtof(probeData):
