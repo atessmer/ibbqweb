@@ -60,7 +60,6 @@ async def websocketHandleCmd(ibbq, cfg, data):
 
 def websocketHandlerFactory(ibbq, cfg):
    async def websocketHandler(request):
-      print("Websocket: request=%s" % str(request))
       ws = aiohttp.web.WebSocketResponse()
       await ws.prepare(request)
 
@@ -119,7 +118,10 @@ def websocketHandlerFactory(ibbq, cfg):
                await websocketHandleCmd(ibbq, cfg, data)
             except (asyncio.TimeoutError, TypeError):
                pass
-      except (ConnectionResetError, asyncio.CancelledError):
+      except (ConnectionResetError, asyncio.CancelledError, RuntimeError) as e:
+         if type(e) is RuntimeError and str(e) != "WebSocket connection is closed.":
+            # Not an expected RuntimeError, re-raise
+            raise
          # Connection closed by peer, or daemon is exiting
          return ws
    return websocketHandler
