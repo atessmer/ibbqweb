@@ -182,9 +182,10 @@ function updateProbeTempTarget(probeIdx) {
    chart.render()
 }
 
-function appendChartData(ts, probeTemperaturesC) {
-   for (var i = 0; i < probeTemperaturesC.length; i++) {
-      var tempC = probeTemperaturesC[i]
+function appendChartData(probeReading) {
+   var ts = new Date(probeReading.ts);
+   for (var i = 0; i < probeReading.probes.length; i++) {
+      var tempC = probeReading.probes[i]
 
       var probecontainer = document.getElementById('probe-container-' + i)
       if (probecontainer == null) {
@@ -277,32 +278,7 @@ function connectWebsocket() {
    ws.onmessage = function (event) {
       data = JSON.parse(event.data)
 
-      if (data.cmd == "temp_history") {
-         /*
-          * Reset chart data
-          */
-         chart.options.data = [];
-         chart.options.axisY.stripLines = [];
-         var xMin = new Date();
-         for (var i = 0; i < data.probeHistory.length; i++) {
-            if (data.probeHistory[i].probes.some(temp => temp != null)) {
-               xMin = new Date(data.probeHistory[i].ts);
-               break;
-            }
-         }
-         var xMax = new Date(xMin.getTime() + (10 * 60 * 1000)); // +10 min
-         chart.options.axisX.minimum = xMin;
-         chart.options.axisX.maximum = xMax;
-
-         /*
-          * Populate chart with historic data from server
-          */
-         for (var i = 0; i < data.probeHistory.length; i++) {
-            var history = data.probeHistory[i];
-            appendChartData(new Date(history.ts), history.probes);
-         }
-         chart.render();
-      } else if (data.cmd == "state_update") {
+      if (data.cmd == "state_update") {
          /*
           * Update connection status
           */
@@ -345,13 +321,32 @@ function connectWebsocket() {
          /*
           * Update probe data (probe and chart tabs)
           */
-         var now = new Date()
-         if (data.connected) {
-            appendChartData(new Date(), data.probeTemperaturesC)
-            for (var i = 0; i < data.probeTemperaturesC.length; i++) {
-               updateProbeTempTarget(i)
+         if (data.fullHistory) {
+            // Reset chart
+            chart.options.data = [];
+            chart.options.axisY.stripLines = [];
+            var xMin = new Date();
+            for (var i = 0; i < data.probeReadings.length; i++) {
+               var reading = data.probeReadings[i];
+               if (reading.probes.some(temp => temp != null)) {
+                  xMin = new Date(reading.ts);
+                  break;
+               }
+            }
+            var xMax = new Date(xMin.getTime() + (10 * 60 * 1000)); // +10 min
+            chart.options.axisX.minimum = xMin;
+            chart.options.axisX.maximum = xMax;
+         }
+
+         if (data.fullHistory || data.connected) {
+            for (var i = 0; i < data.probeReadings.length; i++) {
+               appendChartData(data.probeReadings[i]);
             }
             chart.render();
+
+            for (var i = 0; i < data.probeReadings[0].probes.length; i++) {
+               updateProbeTempTarget(i)
+            }
          }
       } else if (data.cmd == "unit_update") {
          $(ibbqUnitCelcius).bootstrapToggle((data.unit == "C") ? "on" : "off")

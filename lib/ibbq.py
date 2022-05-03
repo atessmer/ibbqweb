@@ -39,8 +39,7 @@ class iBBQ:
       self._celcius = False
       self._device = None
       self._characteristics = {}
-      self._probeCount = probe_count
-      self._tempsC = collections.deque(maxlen=maxhistory)
+      self._readings = collections.deque(maxlen=maxhistory) # temps stored in celcius
       self._currentBatteryLevel = None
       self._client = None
 
@@ -57,14 +56,16 @@ class iBBQ:
       return self._client is not None and bool(self._client.is_connected)
 
    @property
-   def probeTemperaturesC(self):
-      if len(self._tempsC):
-         return self._tempsC[-1]['probes']
-      return [None] * self._probeCount
+   def probeReading(self):
+      if len(self._readings):
+         return self._readings[-1]
+      return None
 
    @property
-   def probeTemperaturesCHistory(self):
-      return list(self._tempsC)
+   def probeReadingsAll(self):
+      if len(self._readings):
+          return list(self._readings)
+      return None
 
    @property
    def batteryLevel(self):
@@ -223,7 +224,7 @@ class iBBQ:
 
    def _cbRealtimeTempNotify(self, handle, data):
       # int16 temperature per probe, always celcius
-      self._tempsC.append({
+      self._readings.append({
         'timestamp': datetime.datetime.now(),
         'probes': [
             self._tempCbtof(probeData)

@@ -11,6 +11,7 @@ from lib.ibbq import iBBQ
 
 
 WEBROOT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "webroot")
+TS_FMT = "%m-%d-%y %H:%M:%S"
 
 async def deviceManager(ibbq):
    print("Connecting...")
@@ -31,10 +32,12 @@ async def deviceManager(ibbq):
             if not ibbq.connected:
                raise ConnectionError("Disconnected from %s" % ibbq.address)
 
-            print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
-            print("Battery: %s%%" % str(ibbq.batteryLevel))
-            for idx, temp in enumerate(ibbq.probeTemperaturesC):
-               print("Probe %d: %s%s" % (idx, str(temp), "C" if temp else ""))
+            reading = ibbq.probeReading
+            if reading is not None:
+               print("-"*20 + reading['timestamp'].isoformat() + "-"*20)
+               print("Battery: %s%%" % str(ibbq.batteryLevel))
+               for idx, temp in enumerate(reading["probes"]):
+                  print("Probe %d: %s%s" % (idx, str(temp), "C" if temp else ""))
 
             await asyncio.sleep(5)
       except ConnectionError:
@@ -62,47 +65,60 @@ def websocketHandlerFactory(ibbq, cfg):
       await ws.prepare(request)
 
       try:
-          clientUnit = ibbq.unit
-          payload = {
-             "cmd": "unit_update",
-             "unit": clientUnit,
-          }
-          await ws.send_json(payload)
+         clientUnit = ibbq.unit
+         payload = {
+            "cmd": "unit_update",
+            "unit": clientUnit,
+         }
+         await ws.send_json(payload)
 
-          payload = {
-             "cmd": "temp_history",
-             "probeHistory": [
-                {
-                   "ts": e["timestamp"].strftime('%m-%d-%y %H:%M:%S'),
-                   "probes": e["probes"],
-                } for e in ibbq.probeTemperaturesCHistory
-             ],
-          }
-          await ws.send_json(payload)
+         fullHistory = True
+         while True:
+            if ibbq.unit != clientUnit:
+               clientUnit = ibbq.unit
+               payload = {
+                  "cmd": "unit_update",
+                  "unit": clientUnit,
+               }
+               await ws.send_json(payload)
 
-          while True:
-             cfg.probe_count = len(ibbq.probeTemperaturesC)
-             payload = {
-                "cmd": "state_update",
-                "connected": ibbq.connected,
-                "batteryLevel": ibbq.batteryLevel,
-                "probeTemperaturesC": ibbq.probeTemperaturesC,
-             }
-             await ws.send_json(payload)
+            reading = ibbq.probeReading
+            if reading is not None:
+               cfg.probe_count = len(reading["probes"])
+               payload = {
+                  "cmd": "state_update",
+                  "connected": ibbq.connected,
+                  "batteryLevel": ibbq.batteryLevel,
+                  "fullHistory": fullHistory,
+               }
 
-             if ibbq.unit != clientUnit:
-                clientUnit = ibbq.unit
-                payload = {
-                   "cmd": "unit_update",
-                   "unit": clientUnit,
-                }
-                await ws.send_json(payload)
+               if fullHistory:
+                  fullHistory = False
+                  payload.update({
+                     "probeReadings": [
+                        {
+                           "ts": e["timestamp"].strftime(TS_FMT),
+                           "probes": e["probes"],
+                        } for e in ibbq.probeReadingsAll
+                     ],
+                  })
+               else:
+                  payload.update({
+                     "probeReadings": [
+                        {
+                           "ts": reading["timestamp"].strftime(TS_FMT),
+                           "probes": reading["probes"],
+                        }
+                     ],
+                  })
 
-             try:
-                data = await ws.receive_json(timeout=1)
-                await websocketHandleCmd(ibbq, cfg, data)
-             except (asyncio.TimeoutError, TypeError):
-                pass
+               await ws.send_json(payload)
+
+            try:
+               data = await ws.receive_json(timeout=1)
+               await websocketHandleCmd(ibbq, cfg, data)
+            except (asyncio.TimeoutError, TypeError):
+               pass
       except (ConnectionResetError, asyncio.CancelledError):
          # Connection closed by peer, or daemon is exiting
          return ws
