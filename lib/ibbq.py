@@ -117,7 +117,6 @@ class iBBQ:
          PairKey,
          response=True
       )
-      await asyncio.sleep(0.1) # XXX: Workaround org.bluez.Error.InProgress error
 
       self._connected = True
 
@@ -142,7 +141,6 @@ class iBBQ:
          SettingsData.EnableRealtimeData.value,
          response=False
       )
-      await asyncio.sleep(0.1) # XXX: Workaround org.bluez.Error.InProgress error
 
       await self._client.start_notify(
          self._characteristics[Characteristics.SettingsNotify.value],
@@ -153,35 +151,23 @@ class iBBQ:
          SettingsData.EnableBatteryData.value,
          response=False
       )
-      await asyncio.sleep(0.1) # XXX: Workaround org.bluez.Error.InProgress error
 
       await self._client.write_gatt_char(
          self._characteristics[Characteristics.SettingsUpdate.value],
          SettingsData.Unknown1.value,
          response=False
       )
-      await asyncio.sleep(0.1) # XXX: Workaround org.bluez.Error.InProgress error
 
 
    async def _setUnit(self, data):
       if not self.connected:
          raise RuntimeError("Device not connected")
 
-      try:
-         await self._client.write_gatt_char(
-            self._characteristics[Characteristics.SettingsUpdate.value],
-            data,
-            response=False
-         )
-         await asyncio.sleep(0.1) # XXX: Workaround org.bluez.Error.InProgress error
-      except bleak.exc.BleakDBusError as e:
-         if e.dbus_error == "org.bluez.Error.InProgress":
-            # Occasionally hitting this, though the write succeeds.
-            # This may be caused by bluez < 5.51:
-            # https://bleak.readthedocs.io/en/latest/api.html#bleak.backends.bluezdbus.client.BleakClientBlueZDBus.write_gatt_char
-            pass
-         else:
-            raise
+      await self._client.write_gatt_char(
+         self._characteristics[Characteristics.SettingsUpdate.value],
+         data,
+         response=False
+      )
       self._notifyChange()
 
    async def setUnitCelcius(self):
@@ -211,7 +197,6 @@ class iBBQ:
          data,
          response=False
       )
-      await asyncio.sleep(0.1) # XXX: Workaround org.bluez.Error.InProgress error
 
    async def silanceAlarm(self, probe=0xff):
       if not self.connected:
@@ -225,7 +210,6 @@ class iBBQ:
          struct.pack("6b", 0x04, probe, 0x00, 0x00, 0x00, 0x00),
          response=False
       )
-      await asyncio.sleep(0.1) # XXX: Workaround org.bluez.Error.InProgress error
 
    @staticmethod
    def _tempCbtof(probeData):
