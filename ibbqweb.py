@@ -12,7 +12,7 @@ from lib.ibbq import iBBQ
 
 
 WEBROOT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "webroot")
-TS_FMT = "%m-%d-%y %H:%M:%S"
+TS_FMT = "%m-%d-%y %H:%M:%S.%f"
 
 async def deviceManager(ibbq):
    print("Connecting...")
@@ -96,7 +96,7 @@ def websocketHandlerFactory(ibbq, cfg):
                payload.update({
                   "probeReadings": [
                      {
-                        "ts": e["timestamp"].strftime(TS_FMT),
+                        "ts": e["timestamp"].strftime(TS_FMT)[:-5],
                         "probes": e["probes"],
                      } for e in ibbq.probeReadingsAll
                   ],
@@ -105,7 +105,7 @@ def websocketHandlerFactory(ibbq, cfg):
                payload.update({
                   "probeReadings": [
                      {
-                        "ts": reading["timestamp"].strftime(TS_FMT),
+                        "ts": reading["timestamp"].strftime(TS_FMT)[:-5],
                         "probes": reading["probes"],
                      }
                   ],
