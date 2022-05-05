@@ -93,7 +93,7 @@ function clearProbeTarget() {
       document.getElementById('probeSettingsModal')
    ).hide()
 
-   updateProbeTempTargetText(probeIdx)
+   updateProbeTempTarget(probeIdx)
 }
 
 function saveProbeTarget() {
