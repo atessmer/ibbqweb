@@ -63,6 +63,7 @@ body {
   background-color: #000;
   font-size: 1.5em;
   line-height: 36px;
+  user-select: none;
 }
 
 .probe-container:nth-child(1) .probe-idx .dot {
