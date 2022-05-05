@@ -184,6 +184,21 @@ function updateProbeTempTarget(probeIdx) {
 
 function appendChartData(probeReading) {
    var ts = new Date(probeReading.ts);
+
+   // When the temp remains the same, we just need the first/last timestamps
+   // of those values to draw a straight line.
+   //
+   // Because the tooltip is shared across all data sets, we need to add a
+   // datapoint to all data sets any time one temp changes so the toolip
+   // shows all temps
+   lastReadings = chart.options.data.map(d => d.dataPoints.slice(-2))
+   duplicateReading =
+      lastReadings.length == probeReading.probes.length &&
+      lastReadings.every(dp => dp.length == 2) &&
+      lastReadings.every((dp, i) =>
+         probeReading['probes'][i] == dp[1].tempC && dp[1].tempC == dp[0].tempC
+      );
+
    for (var i = 0; i < probeReading.probes.length; i++) {
       var tempC = probeReading.probes[i]
 
@@ -233,14 +248,17 @@ function appendChartData(probeReading) {
          })
       }
 
-      if (tempC != null) {
+      chart.options.data[i].legendText =
+         tempC != null ? tempCtoCurUnit(tempC) + "°" : "N/A"
+
+      if (duplicateReading) {
+         lastReadings[i][1].x = ts;
+      } else {
          chart.options.data[i].dataPoints.push({
             x: ts,
             y: tempCtoCurUnit(tempC),
             tempC: tempC,
          })
-         chart.options.data[i].legendText =
-            tempC != null ? tempCtoCurUnit(tempC) + "°" : "N/A"
       }
    }
 

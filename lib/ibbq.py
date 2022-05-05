@@ -65,9 +65,7 @@ class iBBQ:
 
    @property
    def probeReadingsAll(self):
-      if len(self._readings):
-          return list(self._readings)
-      return None
+      return list(self._readings)
 
    @property
    def batteryLevel(self):
@@ -231,13 +229,23 @@ class iBBQ:
 
    def _cbRealtimeTempNotify(self, handle, data):
       # int16 temperature per probe, always celcius
-      self._readings.append({
+      reading = {
         'timestamp': datetime.datetime.now(),
         'probes': [
             self._tempCbtof(probeData)
             for probeData in [data[i:i+2] for i in range(0, len(data), 2)]
         ],
-      })
+      }
+
+      # When the temps all remain the same, we just need the first/last
+      # timestamp of those values to draw a straight line
+      lastReadings = self.probeReadingsAll[-2:]
+      if len(lastReadings) == 2 and \
+         reading['probes'] == lastReadings[1]['probes'] and \
+         reading['probes'] == lastReadings[0]['probes']:
+          lastReadings[1]['timestamp'] = reading['timestamp']
+      else:
+          self._readings.append(reading)
       self._notifyChange()
 
    def _cbSettingsNotify(self, handle, data):
