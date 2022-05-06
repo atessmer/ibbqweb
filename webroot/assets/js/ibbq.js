@@ -44,6 +44,11 @@ function setUnit() {
 }
 
 function updateUnit() {
+   ibbqUnitCelcius.labels.forEach(label =>
+      label.textContent = ibbqUnitCelcius.checked ?
+         label.dataset.on : label.dataset.off
+   )
+
    for (var i = 0; i < chart.options.data.length; i++) {
       var dataSeries = chart.options.data[i];
       for (var j = 0; j < dataSeries.dataPoints.length; j++) {
@@ -51,11 +56,7 @@ function updateUnit() {
          dataPoint.y = tempCtoCurUnit(dataPoint.tempC)
       }
    }
-   if (ibbqUnitCelcius.checked) {
-      chart.options.axisY.maximum = 310
-   } else {
-      chart.options.axisY.maximum = 600
-   }
+   chart.options.axisY.maximum = ibbqUnitCelcius.checked ? 310 : 600;
    chart.render()
 }
 
@@ -367,7 +368,7 @@ function connectWebsocket() {
             }
          }
       } else if (data.cmd == "unit_update") {
-         $(ibbqUnitCelcius).bootstrapToggle((data.unit == "C") ? "on" : "off")
+         ibbqUnitCelcius.checked = (data.unit == "C");
          updateUnit()
       }
    }

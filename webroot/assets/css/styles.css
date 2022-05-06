@@ -117,6 +117,13 @@ body {
 }
 
 /*
+ * Settings
+ */
+#settings label.btn {
+   width: 10em;
+}
+
+/*
  * Bootstrap customizations
  */
 .nav-tabs {
