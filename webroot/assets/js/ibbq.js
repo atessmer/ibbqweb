@@ -30,6 +30,13 @@ function tempCtoCurUnit(tempC) {
    return tempC;
 }
 
+function tempCurUnittoC(temp) {
+   if (temp != null && !ibbqUnitCelcius.checked) {
+      return FtoC(temp);
+   }
+   return temp;
+}
+
 function setUnit() {
    if (ws.readyState != 1) {
       // Not connected
@@ -84,11 +91,25 @@ function updatePreset() {
 function clearProbeTarget() {
    var probeIdx = document.getElementById('probe-settings-index').value
    var probeContainer = document.getElementById('probe-container-' + probeIdx)
+   var probe = parseInt(probeIdx)
+   if (isNaN(probe)) {
+      return
+   }
+
    probeContainer.removeAttribute('data-ibbq-preset')
    probeContainer.removeAttribute('data-ibbq-temp-min')
    probeContainer.removeAttribute('data-ibbq-temp-max')
 
-   // TODO: Send clear to server
+   if (ws.readyState != 1) {
+      // Not connected
+      return
+   }
+   ws.send(JSON.stringify({
+      cmd: 'set_probe_target_temp',
+      probe: probe,
+      min_temp: null,
+      max_temp: null,
+   }))
 
    bootstrap.Modal.getInstance(
       document.getElementById('probeSettingsModal')
@@ -100,6 +121,10 @@ function clearProbeTarget() {
 function saveProbeTarget() {
    var probeIdx = document.getElementById('probe-settings-index').value
    var probeContainer = document.getElementById('probe-container-' + probeIdx)
+   var probe = parseInt(probeIdx)
+   if (isNaN(probe)) {
+      return
+   }
 
    var presetInput = document.getElementById('probe-preset')
    var preset = presetInput.value
@@ -143,7 +168,16 @@ function saveProbeTarget() {
 
       updateProbeTempTarget(probeIdx)
 
-      // TODO: Send set to server
+      if (ws.readyState != 1) {
+         // Not connected
+         return
+      }
+      ws.send(JSON.stringify({
+         cmd: 'set_probe_target_temp',
+         probe: probe,
+         min_temp: isNaN(min) ? null : tempCurUnittoC(min),
+         max_temp: tempCurUnittoC(max),
+      }))
    }
 }
 

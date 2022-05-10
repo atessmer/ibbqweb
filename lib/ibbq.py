@@ -186,6 +186,11 @@ class iBBQ:
       if not self.connected:
          raise RuntimeError("Device not connected")
 
+      if maxTempC is None:
+          maxTempC = 300
+      if minTempC is None:
+          minTempC = -300
+
       # See SettingsData.SetTargetTemp
       data = b"\x01" + struct.pack("<Bhh", probe, int(minTempC * 10),
                                    int(maxTempC * 10))
