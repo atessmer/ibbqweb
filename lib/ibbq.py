@@ -187,7 +187,7 @@ class iBBQ:
          raise RuntimeError("Device not connected")
 
       if maxTempC is None:
-          maxTempC = 300
+          maxTempC = 302
       if minTempC is None:
           minTempC = -300
 
