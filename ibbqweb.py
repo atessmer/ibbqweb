@@ -82,15 +82,23 @@ def websocketHandlerFactory(ibbq, cfg):
             await ws.send_json(payload)
 
          reading = ibbq.probeReading
-         if reading is not None:
-            cfg.probe_count = len(reading["probes"])
-            payload = {
-               "cmd": "state_update",
-               "connected": ibbq.connected,
-               "batteryLevel": ibbq.batteryLevel,
-               "fullHistory": fullHistory,
-            }
+         payload = {
+            "cmd": "state_update",
+            "connected": ibbq.connected,
+            "batteryLevel": ibbq.batteryLevel,
+            "fullHistory": fullHistory,
+         }
 
+         if reading is None:
+            payload.update({
+               "probeReadings": [{
+                  "ts": datetime.datetime.now().strftime(TS_FMT)[:-5],
+                  "probes": [],
+               }],
+            })
+            await ws.send_json(payload)
+         else:
+            cfg.probe_count = len(reading["probes"])
             if fullHistory:
                fullHistory = False
                payload.update({
