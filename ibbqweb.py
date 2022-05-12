@@ -25,7 +25,7 @@ async def deviceManager(ibbq):
          except Exception as e:
             await asyncio.sleep(1)
             continue
-         print("Connected")
+         print("Connected, RSSI: %ddBm" % ibbq.rssi)
 
          await ibbq.subscribe()
 

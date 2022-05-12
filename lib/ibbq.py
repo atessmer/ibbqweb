@@ -71,6 +71,14 @@ class iBBQ:
    def batteryLevel(self):
       return self._currentBatteryLevel
 
+   @property
+   def rssi(self):
+      """The initial RSSI from scan/discover, this value is not updated
+         when connected."""
+      if self._device is None:
+         return None
+      return self._device.rssi
+
    def _notifyChange(self):
       self._changeEvent.set()
       self._changeEvent.clear()
