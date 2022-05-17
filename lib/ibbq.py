@@ -45,6 +45,13 @@ class iBBQ:
       self._client = None
       self._changeEvent = asyncio.Event()
 
+   async def __aenter__(self):
+      return self
+
+   async def __aexit__(self, *excinfo):
+      if self.connected:
+         await self._client.disconnect()
+
    @property
    def address(self):
       return self._device.address if self._device else None

@@ -170,29 +170,26 @@ async def main():
    cfg = lib.config.IbbqWebConfig(args.config)
    cfg.load()
 
-   ibbq = iBBQ(
-      probe_count=cfg.probe_count,
-   )
+   async with iBBQ(probe_count=cfg.probe_count) as ibbq:
+       if cfg.unit == 'C':
+          await ibbq.setUnitCelcius()
+       else:
+          await ibbq.setUnitFarenheit()
 
-   if cfg.unit == 'C':
-      await ibbq.setUnitCelcius()
-   else:
-      await ibbq.setUnitFarenheit()
+       webapp = aiohttp.web.Application(middlewares=[indexMiddleware])
+       webapp.add_routes([
+          aiohttp.web.get('/ws', websocketHandlerFactory(ibbq, cfg)),
+          aiohttp.web.static('/', WEBROOT)
+       ])
+       webappRunner = aiohttp.web.AppRunner(webapp)
+       await webappRunner.setup()
 
-   webapp = aiohttp.web.Application(middlewares=[indexMiddleware])
-   webapp.add_routes([
-      aiohttp.web.get('/ws', websocketHandlerFactory(ibbq, cfg)),
-      aiohttp.web.static('/', WEBROOT)
-   ])
-   webappRunner = aiohttp.web.AppRunner(webapp)
-   await webappRunner.setup()
+       await asyncio.gather(
+          deviceManager(ibbq),
+          aiohttp.web.TCPSite(webappRunner, port=cfg.http_port).start()
+       )
 
-   await asyncio.gather(
-      deviceManager(ibbq),
-      aiohttp.web.TCPSite(webappRunner, port=cfg.http_port).start()
-   )
-
-   webappSite.cleanup()
+       webappSite.cleanup()
 
 if __name__ == "__main__":
    try:
