@@ -189,8 +189,6 @@ async def main():
           aiohttp.web.TCPSite(webappRunner, port=cfg.http_port).start()
        )
 
-       webappSite.cleanup()
-
 if __name__ == "__main__":
    try:
       asyncio.run(main())
