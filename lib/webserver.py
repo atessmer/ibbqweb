@@ -95,7 +95,6 @@ class WebServer:
                     })
                     await wsock.send_json(payload)
                 else:
-                    full_history = False
                     payload.update({
                         "probe_readings": [
                             {
@@ -107,6 +106,7 @@ class WebServer:
                             )
                         ],
                     })
+                    full_history = False
                     await wsock.send_json(payload)
 
                 recv_task = asyncio.create_task(wsock.receive())
