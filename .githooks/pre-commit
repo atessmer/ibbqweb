@@ -1,8 +1,26 @@
 #!/bin/sh
 
+# exit when a command fails
+set -e
+
 # Redirect output to stderr.
 exec 1>&2
 
+if git rev-parse --verify HEAD >/dev/null 2>&1
+then
+	against=HEAD
+else
+	# Initial commit: diff against an empty tree object
+	against=$(git hash-object -t tree /dev/null)
+fi
+
+# Check for whitespace errors
+git diff-index --check --cached $against --
+
 # Lint python sources; assume there are none in webroot
-echo "Linting python..."
-exec git ls-files -- ':!:webroot/' | xargs file | grep "Python" | cut -d: -f1 | xargs pylint --jobs 0 --score no --disable missing-module-docstring,missing-class-docstring,missing-function-docstring
+modified_pys=$(git diff --cached --name-only --diff-filter ACMR|xargs file|grep "Python"|cut -d: -f1)
+if [ "$modified_pys" != "" ]
+then
+   echo "Linting python..."
+   pylint $modified_pys --jobs 0 --score no --disable missing-module-docstring,missing-class-docstring,missing-function-docstring
+fi
