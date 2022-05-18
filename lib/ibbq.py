@@ -295,6 +295,8 @@ class iBBQ:
             majorVersion = data[1]
             minorVersion = data[2]
             patchVersion = data[3]
+            print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
+            print("Version: %d.%d.%d" % (majorVersion, minorVersion, patchVersion))
         elif data[0] == 0x24:
             curVoltage = int.from_bytes(data[1:3], "little")
             maxVoltage = int.from_bytes(data[3:5], "little")
