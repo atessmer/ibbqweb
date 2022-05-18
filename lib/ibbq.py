@@ -1,11 +1,12 @@
 import asyncio
-import bleak
 import binascii
 import collections
 import datetime
 import enum
 import struct
 from uuid import UUID
+
+import bleak
 
 
 class Characteristics(enum.IntEnum):

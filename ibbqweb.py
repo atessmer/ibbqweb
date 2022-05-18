@@ -1,11 +1,12 @@
 #!/usr/bin/python3
 
-import aiohttp.web
 import argparse
 import asyncio
 import datetime
 import json
 import os.path
+
+import aiohttp.web
 
 import lib.config
 from lib.ibbq import iBBQ
