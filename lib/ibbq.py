@@ -349,4 +349,3 @@ class iBBQ:
         else:
             print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
             print("Unhandled settings callback: %s" % data)
-            pass
