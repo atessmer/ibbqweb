@@ -18,7 +18,8 @@ class Characteristics(enum.IntEnum):
 class SettingsData(enum.Enum):
     ENABLE_REALTIME_DATA  = b"\x0B\x01\x00\x00\x00\x00"
     ENABLE_BATTERY_DATA   = b"\x08\x24\x00\x00\x00\x00"
-    SET_TARGET_TEMP       = b"\x01{probe}{min}{max}"    # probe = uint8, min/max = int16 in 10^-1 Celcius
+    SET_TARGET_TEMP       = b"\x01{probe}{min}{max}" # probe = uint8,
+                                                     # min/max = int16 in 10^-1 Celcius
     SET_UNIT_CELCIUS      = b"\x02\x00\x00\x00\x00\x00"
     SET_UNIT_FARENHEIT    = b"\x02\x01\x00\x00\x00\x00"
 

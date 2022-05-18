@@ -32,14 +32,16 @@ async def device_manager(ibbq):
 
             while True:
                 if not ibbq.connected:
-                    raise ConnectionError("Disconnected from %s" % ibbq.address)
+                    raise ConnectionError("Disconnected from %s" %
+                                          ibbq.address)
 
                 reading = ibbq.probe_reading
                 if reading is not None:
                     print("-"*20 + reading['timestamp'].isoformat() + "-"*20)
                     print("Battery: %s%%" % str(ibbq.battery_level))
                     for idx, temp in enumerate(reading["probes"]):
-                        print("Probe %d: %s%s" % (idx, str(temp), "C" if temp else ""))
+                        print("Probe %d: %s%s" %
+                              (idx, str(temp), "C" if temp else ""))
 
                 await asyncio.sleep(5)
         except ConnectionError:
