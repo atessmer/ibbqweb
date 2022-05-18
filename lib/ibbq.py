@@ -9,41 +9,41 @@ import bleak
 
 
 class Characteristics(enum.IntEnum):
-    SettingsNotify      = 0xfff1    # Subscribe
-    Pair                = 0xfff2    # Write
-    History             = 0xfff3    # Read (?)
-    RealtimeTempNotify  = 0xfff4    # Subscribe
-    SettingsUpdate      = 0xfff5    # Write
+    SETTINGS_NOTIFY         = 0xfff1    # Subscribe
+    PAIR                    = 0xfff2    # Write
+    HISTORY                 = 0xfff3    # Read (?)
+    REALTIME_TEMP_NOTIFY    = 0xfff4    # Subscribe
+    SETTINGS_UPDATE         = 0xfff5    # Write
 
 class SettingsData(enum.Enum):
-    EnableRealtimeData  = b"\x0B\x01\x00\x00\x00\x00"
-    EnableBatteryData   = b"\x08\x24\x00\x00\x00\x00"
-    SetTargetTemp       = b"\x01{probe}{min}{max}"    # probe = uint8, min/max = int16 in 10^-1 Celcius
-    SetUnitCelcius      = b"\x02\x00\x00\x00\x00\x00"
-    SetUnitFarenheit    = b"\x02\x01\x00\x00\x00\x00"
+    ENABLE_REALTIME_DATA  = b"\x0B\x01\x00\x00\x00\x00"
+    ENABLE_BATTERY_DATA   = b"\x08\x24\x00\x00\x00\x00"
+    SET_TARGET_TEMP       = b"\x01{probe}{min}{max}"    # probe = uint8, min/max = int16 in 10^-1 Celcius
+    SET_UNIT_CELCIUS      = b"\x02\x00\x00\x00\x00\x00"
+    SET_UNIT_FARENHEIT    = b"\x02\x01\x00\x00\x00\x00"
 
-    GetVersion          = b"\x08\x23\x00\x00\x00\x00"
-    SilanceAlarm        = b"\x04{probe}\x00\x00\x00\x00" # probe = uint8; 0xff for all
-    DeviceAlarmOn       = b"\xfd\x01\x01\x01\x00\x00" # Only for "grilleye" device?
-    DeviceAlarmOff      = b"\xfd\x01\x00\x01\x00\x00" # Only for "grilleye" device?
-    Unknown1            = b"\x12\x03\x00\x00\x00\x00" # App sends this during init
+    GET_VERSION          = b"\x08\x23\x00\x00\x00\x00"
+    SILENCE_ALARM        = b"\x04{probe}\x00\x00\x00\x00" # probe = uint8; 0xff for all
+    DEVICE_ALARM_ON       = b"\xfd\x01\x01\x01\x00\x00" # Only for "grilleye" device?
+    DEVICE_ALARM_OFF      = b"\xfd\x01\x00\x01\x00\x00" # Only for "grilleye" device?
+    UNKNOWN1            = b"\x12\x03\x00\x00\x00\x00" # App sends this during init
                                                       # Return: b"\xff\x12\x00\x00\x00\x00"
-    Unknown2            = b"\xff\x01\x00\x00\x00\x00" # Unused in app
+    UNKNOWN2            = b"\xff\x01\x00\x00\x00\x00" # Unused in app
 
 
-PairKey = b"\x21\x07\x06\x05\x04\x03\x02\x01\xb8\x22\x00\x00\x00\x00\x00"
+PAIR_KEY = b"\x21\x07\x06\x05\x04\x03\x02\x01\xb8\x22\x00\x00\x00\x00\x00"
 
 
-class iBBQ:
+class IBBQ:
     def __init__(self, maxhistory=(60*60*8)):
         self._connected = False
         self._celcius = False
         self._device = None
         self._characteristics = {}
         self._readings = collections.deque(maxlen=maxhistory) # temps stored in celcius
-        self._currentBatteryLevel = None
+        self._cur_battery_level = None
         self._client = None
-        self._changeEvent = asyncio.Event()
+        self._change_event = asyncio.Event()
 
     async def __aenter__(self):
         return self
@@ -65,18 +65,18 @@ class iBBQ:
         return self._connected
 
     @property
-    def probeReading(self):
+    def probe_reading(self):
         if len(self._readings):
             return self._readings[-1]
         return None
 
     @property
-    def probeReadingsAll(self):
+    def probe_readings_all(self):
         return list(self._readings)
 
     @property
-    def batteryLevel(self):
-        return self._currentBatteryLevel
+    def battery_level(self):
+        return self._cur_battery_level
 
     @property
     def rssi(self):
@@ -86,16 +86,16 @@ class iBBQ:
             return None
         return self._device.rssi
 
-    def _notifyChange(self):
-        self._changeEvent.set()
-        self._changeEvent.clear()
+    def _notify_change(self):
+        self._change_event.set()
+        self._change_event.clear()
 
-    async def waitForChange(self):
-        await self._changeEvent.wait()
+    async def await_change(self):
+        await self._change_event.wait()
 
-    def _cbDisconnected(self, client):
+    def _cb_disconnect(self, client):
         self._connected = False
-        self._notifyChange()
+        self._notify_change()
 
     async def connect(self, address=None):
         if self._device is None:
@@ -115,7 +115,7 @@ class iBBQ:
         elif address is not None and self._device.address != address:
             raise NotImplementedError("Changing BLE address not supported")
 
-        self._client = bleak.BleakClient(self._device, disconnected_callback=self._cbDisconnected)
+        self._client = bleak.BleakClient(self._device, disconnected_callback=self._cb_disconnect)
         await self._client.connect()
 
         services = await self._client.get_services()
@@ -126,8 +126,8 @@ class iBBQ:
             self._characteristics[char_uuid.time] = characteristic
 
         await self._client.write_gatt_char(
-            self._characteristics[Characteristics.Pair.value],
-            PairKey,
+            self._characteristics[Characteristics.PAIR.value],
+            PAIR_KEY,
             response=True
         )
 
@@ -135,140 +135,139 @@ class iBBQ:
 
         # Sync settings to device
         if self._celcius:
-            await self._setUnit(SettingsData.SetUnitCelcius.value)
+            await self._set_unit(SettingsData.SET_UNIT_CELCIUS.value)
         else:
-            await self._setUnit(SettingsData.SetUnitFarenheit.value)
+            await self._set_unit(SettingsData.SET_UNIT_FARENHEIT.value)
 
-        self._notifyChange()
+        self._notify_change()
 
     async def subscribe(self):
         if not self.connected:
             raise RuntimeError("Device not connected")
 
         await self._client.start_notify(
-            self._characteristics[Characteristics.RealtimeTempNotify.value],
-            self._cbRealtimeTempNotify
+            self._characteristics[Characteristics.REALTIME_TEMP_NOTIFY.value],
+            self._cb_realtime_temp_notify
         )
         await self._client.write_gatt_char(
-            self._characteristics[Characteristics.SettingsUpdate.value],
-            SettingsData.EnableRealtimeData.value,
+            self._characteristics[Characteristics.SETTINGS_UPDATE.value],
+            SettingsData.ENABLE_REALTIME_DATA.value,
             response=False
         )
 
         await self._client.start_notify(
-            self._characteristics[Characteristics.SettingsNotify.value],
-            self._cbSettingsNotify
+            self._characteristics[Characteristics.SETTINGS_NOTIFY.value],
+            self._cb_settings_notify
         )
         await self._client.write_gatt_char(
-            self._characteristics[Characteristics.SettingsUpdate.value],
-            SettingsData.EnableBatteryData.value,
+            self._characteristics[Characteristics.SETTINGS_UPDATE.value],
+            SettingsData.ENABLE_BATTERY_DATA.value,
             response=False
         )
 
         await self._client.write_gatt_char(
-            self._characteristics[Characteristics.SettingsUpdate.value],
-            SettingsData.Unknown1.value,
+            self._characteristics[Characteristics.SETTINGS_UPDATE.value],
+            SettingsData.UNKNOWN1.value,
             response=False
         )
 
 
-    async def _setUnit(self, data):
+    async def _set_unit(self, data):
         if not self.connected:
             raise RuntimeError("Device not connected")
 
         await self._client.write_gatt_char(
-            self._characteristics[Characteristics.SettingsUpdate.value],
+            self._characteristics[Characteristics.SETTINGS_UPDATE.value],
             data,
             response=False
         )
-        self._notifyChange()
+        self._notify_change()
 
-    async def setUnitCelcius(self):
+    async def set_unit_celcius(self):
         self._celcius = True
         try:
-            await self._setUnit(SettingsData.SetUnitCelcius.value)
+            await self._set_unit(SettingsData.SET_UNIT_CELCIUS.value)
         except RuntimeError:
             pass
 
-    async def setUnitFarenheit(self):
+    async def set_unit_farenheit(self):
         self._celcius = False
         try:
-            await self._setUnit(SettingsData.SetUnitFarenheit.value)
+            await self._set_unit(SettingsData.SET_UNIT_FARENHEIT.value)
         except RuntimeError:
             pass
 
-    async def setProbeTargetTemp(self, probe, minTempC, maxTempC):
+    async def set_probe_target_temp(self, probe, min_temp_c, max_temp_c):
         if not self.connected:
             raise RuntimeError("Device not connected")
 
-        if maxTempC is None:
-            maxTempC = 302
-        if minTempC is None:
-            minTempC = -300
+        if max_temp_c is None:
+            max_temp_c = 302
+        if min_temp_c is None:
+            min_temp_c = -300
 
-        # See SettingsData.SetTargetTemp
-        data = b"\x01" + struct.pack("<Bhh", probe, int(minTempC * 10),
-                                     int(maxTempC * 10))
+        # See SettingsData.SET_TARGET_TEMP
+        data = b"\x01" + struct.pack("<Bhh", probe, int(min_temp_c * 10),
+                                     int(max_temp_c * 10))
 
         await self._client.write_gatt_char(
-            self._characteristics[Characteristics.SettingsUpdate.value],
+            self._characteristics[Characteristics.SETTINGS_UPDATE.value],
             data,
             response=False
         )
 
-    async def silanceAlarm(self, probe=0xff):
+    async def silence_alarm(self, probe=0xff):
         if not self.connected:
             raise RuntimeError("Device not connected")
 
         print("Silencing alarm: probe = %s" % "all" if probe == 0xff else str(probe))
 
-        # See SettingsData.SilanceAlarm
+        # See SettingsData.SILENCE_ALARM
         await self._client.write_gatt_char(
-            self._characteristics[Characteristics.SettingsUpdate.value],
+            self._characteristics[Characteristics.SETTINGS_UPDATE.value],
             struct.pack("6b", 0x04, probe, 0x00, 0x00, 0x00, 0x00),
             response=False
         )
 
     @staticmethod
-    def _tempCbtof(probeData):
+    def _tempc_bin_to_float(probe_data):
         """Temperature (Celcius) binary to float"""
-        rawTemp = struct.unpack('<H', probeData)[0]
-        if rawTemp == 0xfff6:
+        raw_temp = struct.unpack('<H', probe_data)[0]
+        if raw_temp == 0xfff6:
             return None
-        tempC = float(rawTemp) / 10
-        return tempC
+        return float(raw_temp) / 10
 
     @staticmethod
-    def _tempCftob(tempC):
+    def _tempc_float_to_bin(temp):
         """Temperature (Celcius) float to binary"""
-        if tempC is None:
-            rawTemp = 0xfff6
+        if temp is None:
+            raw_temp = 0xfff6
         else:
-            rawTemp = int(tempC * 10)
-        return struct.pack('<H', rawTemp)
+            raw_temp = int(temp * 10)
+        return struct.pack('<H', raw_temp)
 
-    def _cbRealtimeTempNotify(self, handle, data):
+    def _cb_realtime_temp_notify(self, handle, data):
         # int16 temperature per probe, always celcius
         reading = {
             'timestamp': datetime.datetime.now(),
             'probes': [
-                self._tempCbtof(probeData)
-                for probeData in [data[i:i+2] for i in range(0, len(data), 2)]
+                self._tempc_bin_to_float(probe_data)
+                for probe_data in [data[i:i+2] for i in range(0, len(data), 2)]
             ],
         }
 
         # When the temps all remain the same, we just need the first/last
         # timestamp of those values to draw a straight line
-        lastReadings = self.probeReadingsAll[-2:]
-        if len(lastReadings) == 2 and \
-           reading['probes'] == lastReadings[1]['probes'] and \
-           reading['probes'] == lastReadings[0]['probes']:
-            lastReadings[1]['timestamp'] = reading['timestamp']
+        last_readings = self.probe_readings_all[-2:]
+        if len(last_readings) == 2 and \
+           reading['probes'] == last_readings[1]['probes'] and \
+           reading['probes'] == last_readings[0]['probes']:
+            last_readings[1]['timestamp'] = reading['timestamp']
         else:
             self._readings.append(reading)
-        self._notifyChange()
+        self._notify_change()
 
-    def _cbSettingsNotify(self, handle, data):
+    def _cb_settings_notify(self, handle, data):
         #print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
         if data[0] == 0x04:
             if data[1] == 0xff:
@@ -292,22 +291,22 @@ class iBBQ:
                 # "What's this?"
                 pass
         elif data[0] == 0x23:
-            majorVersion = data[1]
-            minorVersion = data[2]
-            patchVersion = data[3]
+            major = data[1]
+            minor = data[2]
+            patch = data[3]
             print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
-            print("Version: %d.%d.%d" % (majorVersion, minorVersion, patchVersion))
+            print("Version: %d.%d.%d" % (major, minor, patch))
         elif data[0] == 0x24:
-            curVoltage = int.from_bytes(data[1:3], "little")
-            maxVoltage = int.from_bytes(data[3:5], "little")
-            if maxVoltage == 0:
-                maxVoltage = 6550
-            factor = maxVoltage / 6550.0
+            cur_voltage = int.from_bytes(data[1:3], "little")
+            max_voltage = int.from_bytes(data[3:5], "little")
+            if max_voltage == 0:
+                max_voltage = 6550
+            factor = max_voltage / 6550.0
 
             #
             # https://github.com/sworisbreathing/go-ibbq/issues/2#issuecomment-650725433
             #
-            VOLTAGES = [
+            voltages = [
                 5580, 5595, 5609, 5624, 5639, 5644, 5649, 5654, 5661, 5668,    # 0-10%
                 5676, 5683, 5698, 5712, 5727, 5733, 5739, 5744, 5750, 5756,    # 10-20%
                 5759, 5762, 5765, 5768, 5771, 5774, 5777, 5780, 5783, 5786,    # 20-30%
@@ -319,18 +318,18 @@ class iBBQ:
                 6172, 6191, 6211, 6230, 6249, 6265, 6280, 6285, 6290, 6295,    # 80-90%
                 6300, 6305, 6310, 6315, 6320, 6325, 6330, 6335, 6340, 6344     # 90-100%
             ]
-            if curVoltage == 0:
+            if cur_voltage == 0:
                 # Charging
-                self._currentBatteryLevel = 0xffff
-            elif curVoltage > VOLTAGES[-1] * factor:
-                self._currentBatteryLevel = 100
+                self._cur_battery_level = 0xffff
+            elif cur_voltage > voltages[-1] * factor:
+                self._cur_battery_level = 100
             else:
-                for i, percentVoltage in enumerate(VOLTAGES[1:]):
-                    if curVoltage < percentVoltage * factor:
-                        self._currentBatteryLevel = i-1
+                for i, percent_voltage in enumerate(voltages[1:]):
+                    if cur_voltage < percent_voltage * factor:
+                        self._cur_battery_level = i-1
                         break
             #print("Battery %d%%: Cur=%dnV, Max=%dmV, Factor=%f" %
-            #      (self._currentBatteryLevel, curVoltage, maxVoltage, factor))
+            #      (self._cur_battery_level, curVoltage, maxVoltage, factor))
             # Setting successful
         elif data[0] == 0xff:
             print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)

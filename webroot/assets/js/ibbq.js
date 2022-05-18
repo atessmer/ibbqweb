@@ -354,17 +354,17 @@ function connectWebsocket() {
             'text-danger',
             'text-warning',
          )
-         if (data.batteryLevel == null) {
+         if (data.battery_level == null) {
             ibbqBattery.textContent = "--"
             ibbqBattery.classList.add('bi-battery')
-         } else if (data.batteryLevel == 0xffff) {
+         } else if (data.battery_level == 0xffff) {
             ibbqBattery.textContent = "--"
             ibbqBattery.classList.add('bi-battery-charging', 'text-warning')
          } else {
-            ibbqBattery.textContent = data.batteryLevel + "%"
-            if (data.batteryLevel <= 10) {
+            ibbqBattery.textContent = data.battery_level + "%"
+            if (data.battery_level <= 10) {
                ibbqBattery.classList.add('bi-battery', 'text-danger')
-            } else if (data.batteryLevel >= 90) {
+            } else if (data.battery_level >= 90) {
                ibbqBattery.classList.add('bi-battery-full')
             } else {
                ibbqBattery.classList.add('bi-battery-half')
@@ -374,13 +374,13 @@ function connectWebsocket() {
          /*
           * Update probe data (probe and chart tabs)
           */
-         if (data.fullHistory) {
+         if (data.full_history) {
             // Reset chart
             chart.options.data = [];
             chart.options.axisY.stripLines = [];
             var xMin = new Date();
-            for (var i = 0; i < data.probeReadings.length; i++) {
-               var reading = data.probeReadings[i];
+            for (var i = 0; i < data.probe_readings.length; i++) {
+               var reading = data.probe_readings[i];
                if (reading.probes.some(temp => temp != null)) {
                   xMin = new Date(reading.ts);
                   break;
@@ -391,13 +391,13 @@ function connectWebsocket() {
             chart.options.axisX.maximum = xMax;
          }
 
-         if (data.fullHistory || data.connected) {
-            for (var i = 0; i < data.probeReadings.length; i++) {
-               appendChartData(data.probeReadings[i]);
+         if (data.full_history || data.connected) {
+            for (var i = 0; i < data.probe_readings.length; i++) {
+               appendChartData(data.probe_readings[i]);
             }
             chart.render();
 
-            for (var i = 0; i < data.probeReadings[0].probes.length; i++) {
+            for (var i = 0; i < data.probe_readings[0].probes.length; i++) {
                updateProbeTempTarget(i)
             }
          }

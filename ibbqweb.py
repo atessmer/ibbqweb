@@ -9,13 +9,13 @@ import os.path
 import aiohttp.web
 
 import lib.config
-from lib.ibbq import iBBQ
+from lib.ibbq import IBBQ
 
 
 WEBROOT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "webroot")
 TS_FMT = "%m-%d-%y %H:%M:%S.%f"
 
-async def deviceManager(ibbq):
+async def device_manager(ibbq):
     print("Connecting...")
     while True:
         try:
@@ -34,10 +34,10 @@ async def deviceManager(ibbq):
                 if not ibbq.connected:
                     raise ConnectionError("Disconnected from %s" % ibbq.address)
 
-                reading = ibbq.probeReading
+                reading = ibbq.probe_reading
                 if reading is not None:
                     print("-"*20 + reading['timestamp'].isoformat() + "-"*20)
-                    print("Battery: %s%%" % str(ibbq.batteryLevel))
+                    print("Battery: %s%%" % str(ibbq.battery_level))
                     for idx, temp in enumerate(reading["probes"]):
                         print("Probe %d: %s%s" % (idx, str(temp), "C" if temp else ""))
 
@@ -46,72 +46,72 @@ async def deviceManager(ibbq):
             print("Reconnecting...")
             await asyncio.sleep(1)
 
-async def websocketHandleCmd(ibbq, cfg, data):
+async def ws_handle_cmd(ibbq, cfg, data):
     if data["cmd"] == "set_unit":
         cfg.unit = data["unit"]
         if data["unit"] == 'C':
-            await ibbq.setUnitCelcius()
+            await ibbq.set_unit_celcius()
         else:
-            await ibbq.setUnitFarenheit()
+            await ibbq.set_unit_farenheit()
     elif data["cmd"] == "set_probe_target_temp":
-        await ibbq.setProbeTargetTemp(data["probe"],
-                                      data["min_temp"],
-                                      data["max_temp"])
+        await ibbq.set_probe_target_temp(data["probe"],
+                                         data["min_temp"],
+                                         data["max_temp"])
     elif data["cmd"] == "silance_alarm":
         await ibbq.silanceAllAlarms()
 
-def websocketHandlerFactory(ibbq, cfg):
-    async def websocketHandler(request):
-        ws = aiohttp.web.WebSocketResponse()
-        await ws.prepare(request)
+def ws_handler_factory(ibbq, cfg):
+    async def ws_handler(request):
+        wsock = aiohttp.web.WebSocketResponse()
+        await wsock.prepare(request)
 
-        clientUnit = ibbq.unit
+        client_unit = ibbq.unit
         payload = {
             "cmd": "unit_update",
-            "unit": clientUnit,
+            "unit": client_unit,
         }
-        await ws.send_json(payload)
+        await wsock.send_json(payload)
 
-        fullHistory = True
+        full_history = True
         while True:
-            if ibbq.unit != clientUnit:
-                clientUnit = ibbq.unit
+            if ibbq.unit != client_unit:
+                client_unit = ibbq.unit
                 payload = {
                     "cmd": "unit_update",
-                    "unit": clientUnit,
+                    "unit": client_unit,
                 }
-                await ws.send_json(payload)
+                await wsock.send_json(payload)
 
-            reading = ibbq.probeReading
+            reading = ibbq.probe_reading
             payload = {
                 "cmd": "state_update",
                 "connected": ibbq.connected,
-                "batteryLevel": ibbq.batteryLevel,
-                "fullHistory": fullHistory,
+                "battery_level": ibbq.battery_level,
+                "full_history": full_history,
             }
 
             if reading is None:
                 payload.update({
-                    "probeReadings": [{
+                    "probe_readings": [{
                         "ts": datetime.datetime.now().strftime(TS_FMT)[:-5],
                         "probes": [],
                     }],
                 })
-                await ws.send_json(payload)
+                await wsock.send_json(payload)
             else:
-                if fullHistory:
-                    fullHistory = False
+                if full_history:
+                    full_history = False
                     payload.update({
-                        "probeReadings": [
+                        "probe_readings": [
                             {
                                 "ts": e["timestamp"].strftime(TS_FMT)[:-5],
                                 "probes": e["probes"],
-                            } for e in ibbq.probeReadingsAll
+                            } for e in ibbq.probe_readings_all
                         ],
                     })
                 else:
                     payload.update({
-                        "probeReadings": [
+                        "probe_readings": [
                             {
                                 "ts": reading["timestamp"].strftime(TS_FMT)[:-5],
                                 "probes": reading["probes"],
@@ -119,10 +119,10 @@ def websocketHandlerFactory(ibbq, cfg):
                         ],
                     })
 
-                await ws.send_json(payload)
+                await wsock.send_json(payload)
 
-            recv_task = asyncio.create_task(ws.receive())
-            update_task = asyncio.create_task(ibbq.waitForChange())
+            recv_task = asyncio.create_task(wsock.receive())
+            update_task = asyncio.create_task(ibbq.await_change())
 
             done, pending = await asyncio.wait(
                 [recv_task, update_task],
@@ -133,14 +133,14 @@ def websocketHandlerFactory(ibbq, cfg):
                 if task == recv_task:
                     msg = await task
                     if msg.type == aiohttp.WSMsgType.CLOSE:
-                        return ws
+                        return wsock
 
                     if msg.type != aiohttp.WSMsgType.TEXT:
                         raise TypeError(
                             "Received message %d:%s is not WSMsgType.TEXT" %
                             (msg.type, msg.data)
                         )
-                    await websocketHandleCmd(ibbq, cfg, json.loads(msg.data))
+                    await ws_handle_cmd(ibbq, cfg, json.loads(msg.data))
                 else:
                     await task
 
@@ -150,10 +150,10 @@ def websocketHandlerFactory(ibbq, cfg):
                     await task
                 except asyncio.CancelledError:
                     pass
-    return websocketHandler
+    return ws_handler
 
 @aiohttp.web.middleware
-async def indexMiddleware(request, handler):
+async def index_middleware(request, handler):
     if request.path == "/":
         return aiohttp.web.FileResponse(os.path.join(WEBROOT, "index.html"))
     return await handler(request)
@@ -170,23 +170,23 @@ async def main():
     cfg = lib.config.IbbqWebConfig(args.config)
     cfg.load()
 
-    async with iBBQ() as ibbq:
+    async with IBBQ() as ibbq:
         if cfg.unit == 'C':
-            await ibbq.setUnitCelcius()
+            await ibbq.set_unit_celcius()
         else:
-            await ibbq.setUnitFarenheit()
+            await ibbq.set_unit_farenheit()
 
-        webapp = aiohttp.web.Application(middlewares=[indexMiddleware])
+        webapp = aiohttp.web.Application(middlewares=[index_middleware])
         webapp.add_routes([
-            aiohttp.web.get('/ws', websocketHandlerFactory(ibbq, cfg)),
+            aiohttp.web.get('/ws', ws_handler_factory(ibbq, cfg)),
             aiohttp.web.static('/', WEBROOT)
         ])
-        webappRunner = aiohttp.web.AppRunner(webapp)
-        await webappRunner.setup()
+        webapp_runner = aiohttp.web.AppRunner(webapp)
+        await webapp_runner.setup()
 
         await asyncio.gather(
-            deviceManager(ibbq),
-            aiohttp.web.TCPSite(webappRunner, port=cfg.http_port).start()
+            device_manager(ibbq),
+            aiohttp.web.TCPSite(webapp_runner, port=cfg.http_port).start()
         )
 
 if __name__ == "__main__":

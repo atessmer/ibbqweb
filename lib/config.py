@@ -11,8 +11,8 @@ class IbbqWebConfig:
 
 
     def load(self):
-        with open(self._cfg_file, 'r') as f:
-            cfg = json.load(f)
+        with open(self._cfg_file, 'r') as f_obj:
+            cfg = json.load(f_obj)
 
         self.http_port = cfg.get('http_port', self._http_port)
         self.unit = cfg.get('unit', self._unit)
@@ -25,11 +25,11 @@ class IbbqWebConfig:
         if not self._loaded:
             return
 
-        with open(self._cfg_file, 'w') as f:
+        with open(self._cfg_file, 'w') as f_obj:
             json.dump({
                 'http_port': self.http_port,
                 'unit': self.unit,
-            }, f, sort_keys=True, indent=4)
+            }, f_obj, sort_keys=True, indent=4)
 
 
     @property
