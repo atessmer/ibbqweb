@@ -5,4 +5,4 @@ exec 1>&2
 
 # Lint python sources; assume there are none in webroot
 echo "Linting python..."
-exec git ls-files -- ':!:webroot/' | xargs file | grep "Python" | cut -d: -f1 | xargs pylint --jobs 0 --score no --disable missing-module-docstring,missing-class-docstring,missing-function-docstring,too-many-instance-attributes
+exec git ls-files -- ':!:webroot/' | xargs file | grep "Python" | cut -d: -f1 | xargs pylint --jobs 0 --score no --disable missing-module-docstring,missing-class-docstring,missing-function-docstring

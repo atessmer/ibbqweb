@@ -37,7 +37,6 @@ PAIR_KEY = b"\x21\x07\x06\x05\x04\x03\x02\x01\xb8\x22\x00\x00\x00\x00\x00"
 
 class IBBQ:
     def __init__(self, maxhistory=(60*60*8)):
-        self._connected = False
         self._celcius = False
         self._device = None
         self._characteristics = {}
@@ -63,7 +62,7 @@ class IBBQ:
 
     @property
     def connected(self):
-        return self._connected
+        return self._client is not None and bool(self._client.is_connected)
 
     @property
     def probe_reading(self):
@@ -95,7 +94,6 @@ class IBBQ:
         await self._change_event.wait()
 
     def _cb_disconnect(self, client):
-        self._connected = False
         self._notify_change()
 
     async def connect(self, address=None):
@@ -131,8 +129,6 @@ class IBBQ:
             PAIR_KEY,
             response=True
         )
-
-        self._connected = True
 
         # Sync settings to device
         if self._celcius:
