@@ -241,7 +241,7 @@ class iBBQ:
     @staticmethod
     def _tempCftob(tempC):
         """Temperature (Celcius) float to binary"""
-        if tempC == None:
+        if tempC is None:
             rawTemp = 0xfff6
         else:
             rawTemp = int(tempC * 10)
