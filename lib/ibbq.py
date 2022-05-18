@@ -36,7 +36,7 @@ PairKey = b"\x21\x07\x06\x05\x04\x03\x02\x01\xb8\x22\x00\x00\x00\x00\x00"
 
 
 class iBBQ:
-    def __init__(self, probe_count=0, maxhistory=(60*60*8)):
+    def __init__(self, maxhistory=(60*60*8)):
         self._connected = False
         self._celcius = False
         self._device = None

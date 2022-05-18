@@ -99,7 +99,6 @@ def websocketHandlerFactory(ibbq, cfg):
                 })
                 await ws.send_json(payload)
             else:
-                cfg.probe_count = len(reading["probes"])
                 if fullHistory:
                     fullHistory = False
                     payload.update({
@@ -171,7 +170,7 @@ async def main():
     cfg = lib.config.IbbqWebConfig(args.config)
     cfg.load()
 
-    async with iBBQ(probe_count=cfg.probe_count) as ibbq:
+    async with iBBQ() as ibbq:
         if cfg.unit == 'C':
             await ibbq.setUnitCelcius()
         else:

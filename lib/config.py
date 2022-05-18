@@ -7,7 +7,6 @@ class IbbqWebConfig:
         self._cfg_file = cfg_file
         self._http_port = 8080
         self._unit = 'F'
-        self._probe_count = 0
         self._loaded = False
 
 
@@ -17,7 +16,6 @@ class IbbqWebConfig:
 
         self.http_port = cfg.get('http_port', self._http_port)
         self.unit = cfg.get('unit', self._unit)
-        self.probe_count = cfg.get('probe_count', self._probe_count)
 
         self._loaded = True
         self.write()
@@ -31,7 +29,6 @@ class IbbqWebConfig:
             json.dump({
                 'http_port': self.http_port,
                 'unit': self.unit,
-                'probe_count': self.probe_count,
             }, f, sort_keys=True, indent=4)
 
 
@@ -62,19 +59,4 @@ class IbbqWebConfig:
 
         if unit != self._unit:
             self._unit = unit
-            self.write()
-
-
-    @property
-    def probe_count(self):
-        return self._probe_count
-
-
-    @probe_count.setter
-    def probe_count(self, probe_count):
-        if not isinstance(probe_count, int):
-            raise TypeError("probe_count must be of type <int>")
-
-        if probe_count != self._probe_count:
-            self._probe_count = probe_count
             self.write()
