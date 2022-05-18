@@ -269,18 +269,19 @@ class IBBQ:
         self._notify_change()
 
     def _cb_settings_notify(self, handle, data):
-        #print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
-        if data[0] == 0x04:
+        def notify_alarm(data):
             if data[1] == 0xff:
                 print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
                 print("Alarm silenced")
             else:
                 print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
                 print("Unhandled settings callback: %s" % data)
-        elif data[0] == 0x20:
-            # paring key???
+
+        def notify_pairing_key(_data):
+            # Not sure what this is...
             pass
-        elif data[0] == 0x21:
+
+        def notify_connect(data):
             if data[1] == 0:
                 # Service pair "miyao" ???
                 # Connect successful
@@ -291,13 +292,15 @@ class IBBQ:
             else:
                 # "What's this?"
                 pass
-        elif data[0] == 0x23:
+
+        def notify_version(data):
             major = data[1]
             minor = data[2]
             patch = data[3]
             print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
             print("Version: %d.%d.%d" % (major, minor, patch))
-        elif data[0] == 0x24:
+
+        def notify_voltage(data):
             cur_voltage = int.from_bytes(data[1:3], "little")
             max_voltage = int.from_bytes(data[3:5], "little")
             if max_voltage == 0:
@@ -332,7 +335,12 @@ class IBBQ:
             #print("Battery %d%%: Cur=%dnV, Max=%dmV, Factor=%f" %
             #      (self._cur_battery_level, curVoltage, maxVoltage, factor))
             # Setting successful
-        elif data[0] == 0xff:
+
+        def notify_unhandled(data):
+            print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
+            print("Unhandled settings callback: %s" % data)
+
+        def notify_success(data):
             print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
             if data[1] == 0x01:
                 # Probe Target Temp
@@ -346,6 +354,14 @@ class IBBQ:
                 print("Success: Alarm silenced")
             else:
                 print("Unhandled settings successful callback: %s" % data)
-        else:
-            print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
-            print("Unhandled settings callback: %s" % data)
+
+        handlers = {
+            0x04: notify_alarm,
+            0x20: notify_pairing_key,
+            0x21: notify_connect,
+            0x23: notify_version,
+            0x24: notify_voltage,
+            0xff: notify_success,
+        }
+        data_handler = handlers.get(data[0], notify_unhandled)
+        data_handler(data)

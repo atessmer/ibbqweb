@@ -101,26 +101,17 @@ def ws_handler_factory(ibbq, cfg):
                 })
                 await wsock.send_json(payload)
             else:
-                if full_history:
-                    full_history = False
-                    payload.update({
-                        "probe_readings": [
-                            {
-                                "ts": e["timestamp"].strftime(TS_FMT)[:-5],
-                                "probes": e["probes"],
-                            } for e in ibbq.probe_readings_all
-                        ],
-                    })
-                else:
-                    payload.update({
-                        "probe_readings": [
-                            {
-                                "ts": reading["timestamp"].strftime(TS_FMT)[:-5],
-                                "probes": reading["probes"],
-                            }
-                        ],
-                    })
-
+                full_history = False
+                payload.update({
+                    "probe_readings": [
+                        {
+                            "ts": e["timestamp"].strftime(TS_FMT)[:-5],
+                            "probes": e["probes"],
+                        } for e in (
+                            ibbq.probe_readings_all if full_history else [reading]
+                        )
+                    ],
+                })
                 await wsock.send_json(payload)
 
             recv_task = asyncio.create_task(wsock.receive())
