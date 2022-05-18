@@ -23,7 +23,7 @@ class SettingsData(enum.Enum):
     SetUnitFarenheit    = b"\x02\x01\x00\x00\x00\x00"
 
     GetVersion          = b"\x08\x23\x00\x00\x00\x00"
-    SilanceAlarm        = b"\x04\{probe}\x00\x00\x00\x00" # probe = uint8; 0xff for all
+    SilanceAlarm        = b"\x04{probe}\x00\x00\x00\x00" # probe = uint8; 0xff for all
     DeviceAlarmOn       = b"\xfd\x01\x01\x01\x00\x00" # Only for "grilleye" device?
     DeviceAlarmOff      = b"\xfd\x01\x00\x01\x00\x00" # Only for "grilleye" device?
     Unknown1            = b"\x12\x03\x00\x00\x00\x00" # App sends this during init
