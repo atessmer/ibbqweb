@@ -46,8 +46,6 @@ function setUnit() {
       cmd: 'set_unit',
       unit: this.checked ? 'C' : 'F',
    }))
-
-   updateUnit()
 }
 
 function updateUnit() {
@@ -90,15 +88,10 @@ function updatePreset() {
 
 function clearProbeTarget() {
    var probeIdx = document.getElementById('probe-settings-index').value
-   var probeContainer = document.getElementById('probe-container-' + probeIdx)
    var probe = parseInt(probeIdx)
    if (isNaN(probe)) {
       return
    }
-
-   probeContainer.removeAttribute('data-ibbq-preset')
-   probeContainer.removeAttribute('data-ibbq-temp-min')
-   probeContainer.removeAttribute('data-ibbq-temp-max')
 
    if (ws.readyState != 1) {
       // Not connected
@@ -107,6 +100,7 @@ function clearProbeTarget() {
    ws.send(JSON.stringify({
       cmd: 'set_probe_target_temp',
       probe: probe,
+      preset: null,
       min_temp: null,
       max_temp: null,
    }))
@@ -114,13 +108,10 @@ function clearProbeTarget() {
    bootstrap.Modal.getInstance(
       document.getElementById('probeSettingsModal')
    ).hide()
-
-   updateProbeTempTarget(probeIdx)
 }
 
 function saveProbeTarget() {
    var probeIdx = document.getElementById('probe-settings-index').value
-   var probeContainer = document.getElementById('probe-container-' + probeIdx)
    var probe = parseInt(probeIdx)
    if (isNaN(probe)) {
       return
@@ -155,19 +146,6 @@ function saveProbeTarget() {
    }
 
    if (valid) {
-      probeContainer.setAttribute('data-ibbq-preset', preset)
-      if (isNaN(min)) {
-         probeContainer.removeAttribute('data-ibbq-temp-min')
-      } else {
-         probeContainer.setAttribute('data-ibbq-temp-min', min)
-      }
-      probeContainer.setAttribute('data-ibbq-temp-max', max)
-      bootstrap.Modal.getInstance(
-         document.getElementById('probeSettingsModal')
-      ).hide()
-
-      updateProbeTempTarget(probeIdx)
-
       if (ws.readyState != 1) {
          // Not connected
          return
@@ -175,9 +153,14 @@ function saveProbeTarget() {
       ws.send(JSON.stringify({
          cmd: 'set_probe_target_temp',
          probe: probe,
+         preset: preset,
          min_temp: isNaN(min) ? null : tempCurUnittoC(min),
          max_temp: tempCurUnittoC(max),
       }))
+
+      bootstrap.Modal.getInstance(
+         document.getElementById('probeSettingsModal')
+      ).hide()
    }
 }
 
@@ -398,6 +381,35 @@ function connectWebsocket() {
             chart.render();
 
             for (var i = 0; i < data.probe_readings[0].probes.length; i++) {
+               var probeContainer = document.getElementById('probe-container-' + i)
+               var targetTemp = data.target_temps[i]
+
+               if (targetTemp !== undefined) {
+                  if (targetTemp.preset == null) {
+                     probeContainer.removeAttribute('data-ibbq-preset')
+                  } else {
+                     probeContainer.setAttribute('data-ibbq-preset', targetTemp.preset)
+                  }
+
+                  if (targetTemp.min_temp == null) {
+                     probeContainer.removeAttribute('data-ibbq-temp-min')
+                  } else {
+                     probeContainer.setAttribute('data-ibbq-temp-min',
+                                                 tempCtoCurUnit(targetTemp.min_temp))
+                  }
+
+                  if (targetTemp.max_temp == null) {
+                     probeContainer.removeAttribute('data-ibbq-temp-max')
+                  } else {
+                     probeContainer.setAttribute('data-ibbq-temp-max',
+                                                 tempCtoCurUnit(targetTemp.max_temp))
+                  }
+               } else {
+                  probeContainer.removeAttribute('data-ibbq-preset')
+                  probeContainer.removeAttribute('data-ibbq-temp-min')
+                  probeContainer.removeAttribute('data-ibbq-temp-max')
+               }
+
                updateProbeTempTarget(i)
             }
          }

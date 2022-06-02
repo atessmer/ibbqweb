@@ -51,6 +51,7 @@ class WebServer:
                 await self._ibbq.set_unit_farenheit()
         elif data["cmd"] == "set_probe_target_temp":
             await self._ibbq.set_probe_target_temp(data["probe"],
+                                                   data["preset"],
                                                    data["min_temp"],
                                                    data["max_temp"])
         elif data["cmd"] == "silance_alarm":
@@ -84,6 +85,14 @@ class WebServer:
                     "connected": self._ibbq.connected,
                     "battery_level": self._ibbq.battery_level,
                     "full_history": full_history,
+                    "target_temps": {
+                        probe: {
+                            "preset": tt["preset"],
+                            "min_temp": tt["min_temp_c"],
+                            "max_temp": tt["max_temp_c"],
+                        }
+                        for (probe, tt) in self._ibbq.target_temps.items()
+                    },
                 }
 
                 if reading is None:

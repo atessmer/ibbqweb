@@ -35,12 +35,13 @@ class SettingsData(enum.Enum):
 PAIR_KEY = b"\x21\x07\x06\x05\x04\x03\x02\x01\xb8\x22\x00\x00\x00\x00\x00"
 
 
-class IBBQ:
+class IBBQ: # pylint: disable=too-many-instance-attributes
     def __init__(self, maxhistory=(60*60*8)):
         self._celcius = False
         self._device = None
         self._characteristics = {}
         self._readings = collections.deque(maxlen=maxhistory) # temps stored in celcius
+        self._target_temps = {}
         self._cur_battery_level = None
         self._client = None
         self._change_event = asyncio.Event()
@@ -73,6 +74,10 @@ class IBBQ:
     @property
     def probe_readings_all(self):
         return list(self._readings)
+
+    @property
+    def target_temps(self):
+        return self._target_temps
 
     @property
     def battery_level(self):
@@ -194,9 +199,18 @@ class IBBQ:
         except RuntimeError:
             pass
 
-    async def set_probe_target_temp(self, probe, min_temp_c, max_temp_c):
+    async def set_probe_target_temp(self, probe, preset, min_temp_c, max_temp_c):
         if not self.connected:
             raise RuntimeError("Device not connected")
+
+        if preset is None and min_temp_c is None and max_temp_c is None:
+            del self._target_temps[probe]
+        else:
+            self._target_temps[probe] = {
+                "preset": preset,
+                "min_temp_c": min_temp_c,
+                "max_temp_c": max_temp_c,
+            }
 
         if max_temp_c is None:
             max_temp_c = 302
@@ -212,6 +226,7 @@ class IBBQ:
             data,
             response=False
         )
+        self._notify_change()
 
     async def silence_alarm(self, probe=0xff):
         if not self.connected:
