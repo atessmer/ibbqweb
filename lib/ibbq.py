@@ -8,7 +8,7 @@ from uuid import UUID
 import bleak
 
 
-ALARM_SILENCE_TIMEOUT = 120 # seconds
+ALARM_SILENCE_TIMEOUT = (5 * 60) # seconds. device uses 5 min so we will too
 
 class Characteristics(enum.IntEnum):
     SETTINGS_NOTIFY         = 0xfff1    # Subscribe
