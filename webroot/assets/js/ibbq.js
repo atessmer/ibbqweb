@@ -4,6 +4,10 @@ var ibbqConnection;
 var ibbqBattery;
 var ibbqUnitCelcius;
 var chart;
+var tempAlertModal;
+var inSilenceAlarmHandler = false;
+
+var alertAudio = new Audio('/assets/audio/AlertTone.mp3');
 
 // Match .probe-container:nth-child(...) .probe-idx .dot
 var probeColors = [
@@ -412,6 +416,17 @@ function connectWebsocket() {
 
                updateProbeTempTarget(i)
             }
+
+            /*
+             * Update target temp alert
+             */
+            if (data.target_temp_alert) {
+               tempAlertModal.show();
+            } else {
+               inSilenceAlarmHandler = true;
+               tempAlertModal.hide();
+               inSilenceAlarmHandler = false;
+            }
          }
       } else if (data.cmd == "unit_update") {
          ibbqUnitCelcius.checked = (data.unit == "C");
@@ -521,6 +536,54 @@ document.onreadystatechange = function() {
             chart.render();
          }
       );
+
+      alertAudio.muted = true;
+      alertAudio.play().catch(error => {
+         var modalEl = document.getElementById('audioNoticeModal');
+         var modal = new bootstrap.Modal(modalEl);
+         modal.show();
+         return new Promise((resolve, reject) => {
+            modalEl.addEventListener('hide.bs.modal', event => {
+               alertAudio.muted = true;
+               alertAudio.play().then(() => {
+                  resolve();
+               }).catch(error => {
+                  reject(error);
+               })
+            });
+         })
+      }).then(() => {
+         alertAudio.pause();
+         alertAudio.currentTime = 0;
+         alertAudio.muted = false;
+         alertAudio.loop = true;
+      }).catch(error => {
+         alert("Audio notifications are blocked by your browser, please " +
+               "check browser documentation for details:\n\n" + error);
+      });
+
+      var tempAlertModalEl = document.getElementById('tempAlertModal');
+      tempAlertModal = new bootstrap.Modal(tempAlertModalEl);
+      tempAlertModalEl.addEventListener('hide.bs.modal', event => {
+         alertAudio.pause();
+         alertAudio.currentTime = 0;
+
+         if (ws.readyState != 1) {
+            // Not connected
+            return;
+         }
+
+         if (inSilenceAlarmHandler) {
+            return;
+         }
+
+         ws.send(JSON.stringify({
+            cmd: 'silence_alarm',
+         }))
+      })
+      tempAlertModalEl.addEventListener('show.bs.modal', event => {
+         alertAudio.play();
+      })
 
       connectWebsocket();
    }

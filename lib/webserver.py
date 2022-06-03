@@ -54,8 +54,8 @@ class WebServer:
                                                    data["preset"],
                                                    data["min_temp"],
                                                    data["max_temp"])
-        elif data["cmd"] == "silance_alarm":
-            await self._ibbq.silanceAllAlarms()
+        elif data["cmd"] == "silence_alarm":
+            await self._ibbq.silence_alarm()
 
     def _ws_handler_factory(self):
         async def ws_handler(request):
@@ -93,6 +93,7 @@ class WebServer:
                         }
                         for (probe, tt) in self._ibbq.target_temps.items()
                     },
+                    "target_temp_alert": self._ibbq.target_temp_alert,
                 }
 
                 if reading is None:

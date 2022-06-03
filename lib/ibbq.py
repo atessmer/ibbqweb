@@ -8,6 +8,8 @@ from uuid import UUID
 import bleak
 
 
+ALARM_SILENCE_TIMEOUT = 120 # seconds
+
 class Characteristics(enum.IntEnum):
     SETTINGS_NOTIFY         = 0xfff1    # Subscribe
     PAIR                    = 0xfff2    # Write
@@ -42,6 +44,7 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         self._characteristics = {}
         self._readings = collections.deque(maxlen=maxhistory) # temps stored in celcius
         self._target_temps = {}
+        self._silence_temp_alert_until = datetime.datetime.now()
         self._cur_battery_level = None
         self._client = None
         self._change_event = asyncio.Event()
@@ -78,6 +81,26 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
     @property
     def target_temps(self):
         return self._target_temps
+
+    @property
+    def target_temp_alert(self):
+        if (
+            datetime.datetime.now() < self._silence_temp_alert_until or
+            self.probe_reading is None
+        ):
+            return False
+
+        for (probe, target_temp) in self._target_temps.items():
+            if self.probe_reading['probes'][probe] > target_temp['max_temp_c']:
+                return True
+
+            if (
+                target_temp['min_temp_c'] is not None and
+                self.probe_reading['probes'][probe] < target_temp['min_temp_c']
+            ):
+                return True
+
+        return False
 
     @property
     def battery_level(self):
@@ -141,6 +164,12 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         else:
             await self._set_unit(SettingsData.SET_UNIT_FARENHEIT.value)
 
+        for (probe, target_temp) in self._target_temps.items():
+            await self.set_probe_target_temp(probe,
+                                             target_temp['preset'],
+                                             target_temp['min_temp_c'],
+                                             target_temp['max_temp_c'])
+
         self._notify_change()
 
     async def subscribe(self):
@@ -203,32 +232,43 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         if not self.connected:
             raise RuntimeError("Device not connected")
 
-        if preset is None and min_temp_c is None and max_temp_c is None:
-            del self._target_temps[probe]
-        else:
-            self._target_temps[probe] = {
-                "preset": preset,
-                "min_temp_c": min_temp_c,
-                "max_temp_c": max_temp_c,
-            }
-
-        if max_temp_c is None:
-            max_temp_c = 302
-        if min_temp_c is None:
-            min_temp_c = -300
+        # device uses temp * 10, with extreems if not set
+        dev_min_temp_c = int(min_temp_c * 10) if min_temp_c else  -3000
+        dev_max_temp_c = int(max_temp_c * 10) if max_temp_c else 3020
 
         # See SettingsData.SET_TARGET_TEMP
-        data = b"\x01" + struct.pack("<Bhh", probe, int(min_temp_c * 10),
-                                     int(max_temp_c * 10))
+        data = b"\x01" + struct.pack("<Bhh", probe, dev_min_temp_c,
+                                     dev_max_temp_c)
 
         await self._client.write_gatt_char(
             self._characteristics[Characteristics.SETTINGS_UPDATE.value],
             data,
             response=False
         )
+
+        if preset is None and min_temp_c is None and max_temp_c is None:
+            try:
+                del self._target_temps[probe]
+            except KeyError:
+                pass
+        else:
+            self._target_temps[probe] = {
+                "preset": preset,
+                "min_temp_c": min_temp_c,
+                "max_temp_c": max_temp_c,
+            }
+        self._silence_temp_alert_until = datetime.datetime.now()
+
+        self._notify_change()
+
+    def _silence_client_alarm(self):
+        self._silence_temp_alert_until = datetime.datetime.now() + \
+                                         datetime.timedelta(seconds=ALARM_SILENCE_TIMEOUT)
         self._notify_change()
 
     async def silence_alarm(self, probe=0xff):
+        self._silence_client_alarm()
+
         if not self.connected:
             raise RuntimeError("Device not connected")
 
@@ -237,7 +277,7 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         # See SettingsData.SILENCE_ALARM
         await self._client.write_gatt_char(
             self._characteristics[Characteristics.SETTINGS_UPDATE.value],
-            struct.pack("6b", 0x04, probe, 0x00, 0x00, 0x00, 0x00),
+            struct.pack("6B", 0x04, probe, 0x00, 0x00, 0x00, 0x00),
             response=False
         )
 
@@ -284,6 +324,7 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
             if data[1] == 0xff:
                 print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
                 print("Alarm silenced")
+                self._silence_client_alarm()
             else:
                 print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
                 print("Unhandled settings callback: %s" % data)

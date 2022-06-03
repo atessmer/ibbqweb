@@ -117,6 +117,34 @@
         </div>
       </div>
     </div>
+    <div class="modal fade" id="audioNoticeModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="audioNoticeModalLabel">Audio Notice</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            This page uses play audio notifications when a temperature probe target is set and exceeded.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal fade" id="tempAlertModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="tempAlertModalLabel">Temperature Probe Alert</h5>
+          </div>
+          <div class="modal-body">
+            Target temperature alert!
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-danger flex-grow-1" data-bs-dismiss="modal">Silence</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </body>
   <template id="probe-container-template">
     <div class="col probe-container px-0 px-lg-3" id="probe-container-{idx}">
