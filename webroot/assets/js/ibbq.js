@@ -241,7 +241,7 @@ function appendChartData(probeReading) {
       if (chart.options.data.length < i + 1) {
          var probeColor = i <= probeColors.length ? probeColors[i] : "#000"
          chart.options.data.push({
-            type: "spline",
+            type: "line",
             markerType: "none",
             name: "Probe " + (i+1),
             showInLegend: true,
