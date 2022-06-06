@@ -7,7 +7,6 @@ import ssl
 import aiohttp.web
 
 WEBROOT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../webroot")
-TS_FMT = "%m-%d-%y %H:%M:%S.%f"
 
 class WebServer:
     def __init__(self, cfg, ibbq):
@@ -108,7 +107,7 @@ class WebServer:
                 if reading is None:
                     payload.update({
                         "probe_readings": [{
-                            "ts": datetime.datetime.now().strftime(TS_FMT)[:-5],
+                            "ts": datetime.datetime.now().isoformat()[:-5],
                             "probes": [],
                         }],
                     })
@@ -117,7 +116,7 @@ class WebServer:
                     payload.update({
                         "probe_readings": [
                             {
-                                "ts": e["timestamp"].strftime(TS_FMT)[:-5],
+                                "ts": e["timestamp"].isoformat()[:-5],
                                 "probes": e["probes"],
                             } for e in (
                                 self._ibbq.probe_readings_all if full_history
