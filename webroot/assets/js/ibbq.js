@@ -294,7 +294,12 @@ function appendChartData(probeReading) {
 }
 
 function connectWebsocket() {
-   ws = new WebSocket("ws://" + window.location.host + "/ws")
+   if (window.location.protocol == "https:") {
+      protocol = "wss://"
+   } else {
+      protocol = "ws://"
+   }
+   ws = new WebSocket(protocol + window.location.host + "/ws")
 
    ws.onopen = function(event) {
       if (serverDisconnectedBanner.classList.contains("show")) {

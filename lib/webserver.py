@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import json
 import os.path
+import ssl
 
 import aiohttp.web
 
@@ -38,8 +39,16 @@ class WebServer:
         return await handler(request)
 
     def start(self):
+        ssl_ctx = None
+        if self._cfg.tls_cert and self._cfg.tls_key:
+            ssl_ctx = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_SERVER)
+            ssl_ctx.load_cert_chain(self._cfg.tls_cert, self._cfg.tls_key)
+        elif self._cfg.tls_cert or self._cfg.tls_key:
+            raise ValueError("Must specify both or neither TLS 'cert' and 'key'")
+
         tcpsite = aiohttp.web.TCPSite(self._webapp_runner,
-                                      port=self._cfg.http_port)
+                                      port=self._cfg.http_port,
+                                      ssl_context=ssl_ctx)
         return tcpsite.start()
 
     async def _ws_handle_cmd(self, data):
