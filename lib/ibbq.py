@@ -382,7 +382,7 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
             else:
                 for i, percent_voltage in enumerate(voltages[1:]):
                     if cur_voltage < percent_voltage * factor:
-                        self._cur_battery_level = i-1
+                        self._cur_battery_level = i
                         break
             #print("Battery %d%%: Cur=%dnV, Max=%dmV, Factor=%f" %
             #      (self._cur_battery_level, curVoltage, maxVoltage, factor))
