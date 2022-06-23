@@ -75,7 +75,12 @@ function updatePreset() {
    var probeTempMax = document.getElementById('probe-temp-max')
 
    var preset = document.querySelector('#probe-preset option:checked')
-   if (preset.value == 'custom.temp') {
+   if (preset == null) {
+      probeTempMin.disabled = true
+      probeTempMin.value = null
+      probeTempMax.disabled = true
+      probeTempMax.value = null
+   } else if (preset.value == 'custom.temp') {
       probeTempMin.disabled = true
       probeTempMin.value = null
       probeTempMax.disabled = false
@@ -465,6 +470,8 @@ document.onreadystatechange = function() {
                probeContainer.getAttribute('data-ibbq-temp-min')
             document.getElementById('probe-temp-max').value =
                probeContainer.getAttribute('data-ibbq-temp-max')
+
+            updatePreset()
          }
       )
 
