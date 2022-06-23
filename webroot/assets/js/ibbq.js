@@ -453,6 +453,19 @@ document.onreadystatechange = function() {
       ibbqUnitCelcius = document.getElementById("ibbq-unit-celcius");
       ibbqUnitCelcius.onchange = setUnit
 
+      document.getElementById("ibbq-clear-history").addEventListener(
+         'click', function(event) {
+            if (ws.readyState != 1) {
+               // Not connected
+               return;
+            }
+
+            ws.send(JSON.stringify({
+               cmd: 'clear_history',
+            }))
+         }
+      )
+
       document.getElementById('probeSettingsModal').addEventListener(
          'show.bs.modal', function(event) {
             var probeContainer = event.relatedTarget

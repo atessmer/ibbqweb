@@ -79,6 +79,12 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         return list(self._readings)
 
     @property
+    def probe_readings_since(self):
+        if len(self._readings):
+            return self._readings[0]['timestamp'].timestamp()
+        return 0.0
+
+    @property
     def target_temps(self):
         return self._target_temps
 
@@ -292,6 +298,9 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
             struct.pack("6B", 0x04, probe, 0x00, 0x00, 0x00, 0x00),
             response=False
         )
+
+    def clear_history(self):
+        self._readings.clear()
 
     @staticmethod
     def _tempc_bin_to_float(probe_data):

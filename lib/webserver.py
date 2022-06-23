@@ -65,6 +65,9 @@ class WebServer:
         elif data["cmd"] == "silence_alarm":
             await self._ibbq.silence_alarm()
 
+        elif data["cmd"] == "clear_history":
+            self._ibbq.clear_history()
+
     def _ws_handler_factory(self):
         async def ws_handler(request):
             wsock = aiohttp.web.WebSocketResponse()
@@ -77,8 +80,13 @@ class WebServer:
             }
             await wsock.send_json(payload)
 
+            readings_since = self._ibbq.probe_readings_since
             full_history = True
             while True:
+                if self._ibbq.probe_readings_since > readings_since:
+                    readings_since = self._ibbq.probe_readings_since
+                    full_history = True
+
                 if self._ibbq.unit != client_unit:
                     client_unit = self._ibbq.unit
                     payload = {
