@@ -16,7 +16,7 @@ async def device_manager(ibbq):
                 await ibbq.connect(ibbq.address)
             except asyncio.CancelledError:
                 return
-            except asyncio.TimeoutError:
+            except (asyncio.TimeoutError, ConnectionError):
                 await asyncio.sleep(1)
                 continue
             print("Connected, RSSI: %ddBm" % ibbq.rssi)

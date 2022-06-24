@@ -143,8 +143,15 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
             raise NotImplementedError("Changing BLE address not supported")
 
         self._client = bleak.BleakClient(self._device, disconnected_callback=self._cb_disconnect)
-        await self._client.connect()
+        try:
+            await self._client.connect()
+        except (bleak.exc.BleakError, bleak.exc.BleakDBusError) as ex:
+            print("Failure to connect to device: [%s] %s" % (type(ex).__name__, ex))
+            raise ConnectionError("Failure to connect to device") from ex
 
+        await self._init_client()
+
+    async def _init_client(self):
         services = await self._client.get_services()
         for characteristic in services.characteristics.values():
             # Time portion of UUID is characteristic key
