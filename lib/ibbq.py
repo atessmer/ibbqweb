@@ -90,13 +90,18 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         ):
             return False
 
+        probe_readings = list(self.probe_reading['probes'])
         for (probe, target_temp) in self._target_temps.items():
-            if self.probe_reading['probes'][probe] > target_temp['max_temp_c']:
+            if probe_readings[probe] is None:
+                # Probe disconnected
+                continue
+
+            if probe_readings[probe] > target_temp['max_temp_c']:
                 return True
 
             if (
                 target_temp['min_temp_c'] is not None and
-                self.probe_reading['probes'][probe] < target_temp['min_temp_c']
+                probe_readings[probe] < target_temp['min_temp_c']
             ):
                 return True
 
