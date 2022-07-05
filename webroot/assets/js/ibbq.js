@@ -65,7 +65,6 @@ function updateUnit() {
          dataPoint.y = tempCtoCurUnit(dataPoint.tempC)
       }
    }
-   chart.options.axisY.maximum = ibbqUnitCelcius.checked ? 310 : 600;
    chart.render()
 }
 
