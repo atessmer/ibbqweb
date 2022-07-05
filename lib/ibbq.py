@@ -102,12 +102,12 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
                 # Probe disconnected
                 continue
 
-            if probe_readings[probe] > target_temp['max_temp_c']:
+            if probe_readings[probe] >= target_temp['max_temp_c']:
                 return True
 
             if (
                 target_temp['min_temp_c'] is not None and
-                probe_readings[probe] < target_temp['min_temp_c']
+                probe_readings[probe] <= target_temp['min_temp_c']
             ):
                 return True
 
