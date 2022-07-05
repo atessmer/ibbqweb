@@ -509,6 +509,11 @@ document.onreadystatechange = function() {
             cursor: "pointer",
             verticalAlign: "top",
             fontSize: 20,
+            itemclick: (e) => {
+               e.dataSeries.visible = e.dataSeries.visible !== undefined &&
+                                      !e.dataSeries.visible
+               e.chart.render()
+            }
          },
          toolTip: {
             shared: true,
