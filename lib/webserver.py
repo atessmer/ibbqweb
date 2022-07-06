@@ -51,22 +51,26 @@ class WebServer:
         return tcpsite.start()
 
     async def _ws_handle_cmd(self, data):
-        if data["cmd"] == "set_unit":
-            self._cfg.unit = data["unit"]
-            if data["unit"] == 'C':
-                await self._ibbq.set_unit_celcius()
-            else:
-                await self._ibbq.set_unit_farenheit()
-        elif data["cmd"] == "set_probe_target_temp":
-            await self._ibbq.set_probe_target_temp(data["probe"],
-                                                   data["preset"],
-                                                   data["min_temp"],
-                                                   data["max_temp"])
-        elif data["cmd"] == "silence_alarm":
-            await self._ibbq.silence_alarm()
+        try:
+            if data["cmd"] == "set_unit":
+                self._cfg.unit = data["unit"]
+                if data["unit"] == 'C':
+                    await self._ibbq.set_unit_celcius()
+                else:
+                    await self._ibbq.set_unit_farenheit()
+            elif data["cmd"] == "set_probe_target_temp":
+                await self._ibbq.set_probe_target_temp(data["probe"],
+                                                       data["preset"],
+                                                       data["min_temp"],
+                                                       data["max_temp"])
+            elif data["cmd"] == "silence_alarm":
+                await self._ibbq.silence_alarm()
 
-        elif data["cmd"] == "clear_history":
-            self._ibbq.clear_history()
+            elif data["cmd"] == "clear_history":
+                self._ibbq.clear_history()
+        except ConnectionError:
+            # Send an error back to the client?
+            pass
 
     def _ws_handler_factory(self):
         async def ws_handler(request):

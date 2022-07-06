@@ -192,7 +192,7 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
 
     async def subscribe(self):
         if not self.connected:
-            raise RuntimeError("Device not connected")
+            raise ConnectionError("Device not connected")
 
         await self._client.start_notify(
             self._characteristics[Characteristics.REALTIME_TEMP_NOTIFY.value],
@@ -223,7 +223,7 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
 
     async def _set_unit(self, data):
         if not self.connected:
-            raise RuntimeError("Device not connected")
+            raise ConnectionError("Device not connected")
 
         await self._client.write_gatt_char(
             self._characteristics[Characteristics.SETTINGS_UPDATE.value],
@@ -236,19 +236,19 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         self._celcius = True
         try:
             await self._set_unit(SettingsData.SET_UNIT_CELCIUS.value)
-        except RuntimeError:
+        except ConnectionError:
             pass
 
     async def set_unit_farenheit(self):
         self._celcius = False
         try:
             await self._set_unit(SettingsData.SET_UNIT_FARENHEIT.value)
-        except RuntimeError:
+        except ConnectionError:
             pass
 
     async def set_probe_target_temp(self, probe, preset, min_temp_c, max_temp_c):
         if not self.connected:
-            raise RuntimeError("Device not connected")
+            raise ConnectionError("Device not connected")
 
         # device uses temp * 10, with extreems if not set
         dev_min_temp_c = int(min_temp_c * 10) if min_temp_c else  -3000
@@ -288,7 +288,7 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         self._silence_client_alarm()
 
         if not self.connected:
-            raise RuntimeError("Device not connected")
+            raise ConnectionError("Device not connected")
 
         print("Silencing alarm: probe = %s" % "all" if probe == 0xff else str(probe))
 
