@@ -1,10 +1,14 @@
 import asyncio
 import datetime
 import json
+import logging
 import os.path
 import ssl
 
 import aiohttp.web
+
+log = logging.getLogger('ibbqweb')
+
 
 WEBROOT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../webroot")
 
@@ -74,6 +78,8 @@ class WebServer:
 
     def _ws_handler_factory(self):
         async def ws_handler(request):
+            log.info("Websocket connected from %s:%d",
+                     *request.transport.get_extra_info('peername'))
             wsock = aiohttp.web.WebSocketResponse()
             await wsock.prepare(request)
 

@@ -2,10 +2,13 @@ import asyncio
 import collections
 import datetime
 import enum
+import logging
 import struct
 from uuid import UUID
 
 import bleak
+
+log = logging.getLogger('ibbqweb')
 
 
 ALARM_SILENCE_TIMEOUT = (5 * 60) # seconds. device uses 5 min so we will too
@@ -142,7 +145,7 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
                     devs = await bleak.BleakScanner.discover()
                     for dev in devs:
                         if dev.name == "iBBQ":
-                            #print("Found iBBQ: %s" % dev.address)
+                            log.debug("Found iBBQ: %s", dev.address)
                             self._device = dev
                             break
                     await asyncio.sleep(1)
@@ -157,16 +160,17 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         try:
             await self._client.connect()
         except (bleak.exc.BleakError, bleak.exc.BleakDBusError) as ex:
-            print("Failure to connect to device: [%s] %s" % (type(ex).__name__, ex))
+            log.exception("Failure to connect to device")
             raise ConnectionError("Failure to connect to device") from ex
 
         await self._init_client()
 
     async def _init_client(self):
         services = await self._client.get_services()
+        log.debug("Discovered characteristics:")
         for characteristic in services.characteristics.values():
             # Time portion of UUID is characteristic key
-            print(characteristic)
+            log.debug(characteristic)
             char_uuid = UUID(characteristic.uuid)
             self._characteristics[char_uuid.time] = characteristic
 
@@ -290,7 +294,7 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         if not self.connected:
             raise ConnectionError("Device not connected")
 
-        print("Silencing alarm: probe = %s" % "all" if probe == 0xff else str(probe))
+        log.info("Silencing alarm: probe = %s", "all" if probe == 0xff else str(probe))
 
         # See SettingsData.SILENCE_ALARM
         await self._client.write_gatt_char(
@@ -329,6 +333,9 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
             ],
         }
 
+        log.debug("Temperature notification: %s",
+                  ", ".join(str(temp) for temp in reading['probes']))
+
         # When the temps all remain the same, we just need the first/last
         # timestamp of those values to draw a straight line
         last_readings = self.probe_readings_all[-2:]
@@ -343,12 +350,10 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
     def _cb_settings_notify(self, handle, data):
         def notify_alarm(data):
             if data[1] == 0xff:
-                print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
-                print("Alarm silenced")
+                log.info("Alarm silenced")
                 self._silence_client_alarm()
             else:
-                print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
-                print("Unhandled settings callback: %s" % data)
+                log.warning("Unhandled settings callback: %s", data)
 
         def notify_pairing_key(_data):
             # Not sure what this is...
@@ -370,8 +375,7 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
             major = data[1]
             minor = data[2]
             patch = data[3]
-            print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
-            print("Version: %d.%d.%d" % (major, minor, patch))
+            log.info("Version: %d.%d.%d", major, minor, patch)
 
         def notify_voltage(data):
             cur_voltage = int.from_bytes(data[1:3], "little")
@@ -405,28 +409,25 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
                     if cur_voltage < percent_voltage * factor:
                         self._cur_battery_level = i
                         break
-            #print("Battery %d%%: Cur=%dnV, Max=%dmV, Factor=%f" %
-            #      (self._cur_battery_level, curVoltage, maxVoltage, factor))
-            # Setting successful
+            log.debug("Battery notification [%d%%]: Cur=%dnV, Max=%dmV, Factor=%f",
+                      self._cur_battery_level, cur_voltage, max_voltage, factor)
 
         def notify_unhandled(data):
-            print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
-            print("Unhandled settings callback: %s" % data)
+            log.warning("Unhandled settings callback: %s", data)
 
         def notify_success(data):
-            print("-"*20 + datetime.datetime.now().isoformat() + "-"*20)
             if data[1] == 0x01:
                 # Probe Target Temp
-                print("Success: Probe target temp set")
+                log.info("Success: Probe target temp set")
             elif data[1] == 0x02:
                 # Unit
-                print("Success: Temperature unit set")
+                log.info("Success: Temperature unit set")
             elif data[1] == 0x04:
                 # response for writing SettingsData.SilenceAlarm, though
                 # device alarm continues beeping
-                print("Success: Alarm silenced")
+                log.info("Success: Alarm silenced")
             else:
-                print("Unhandled settings successful callback: %s" % data)
+                log.warning("Unhandled settings successful callback: %s", data)
 
         handlers = {
             0x04: notify_alarm,
