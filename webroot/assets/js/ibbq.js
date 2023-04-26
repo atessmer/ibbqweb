@@ -65,7 +65,7 @@ function updateUnit() {
          dataPoint.y = tempCtoCurUnit(dataPoint.tempC)
       }
    }
-   chart.render()
+   renderChart(minRenderIntervalMs=0)
 }
 
 // TODO: support Celcius presets too
@@ -205,7 +205,6 @@ function updateProbeTempTarget(probeIdx) {
       sl.endValue = max
       sl.opacity = STRIPLINE_RANGE_OPACITY
    }
-   chart.render()
 }
 
 function appendChartData(probeReading) {
@@ -297,6 +296,36 @@ function appendChartData(probeReading) {
    }
 }
 
+chartRenderTimeoutId = -1;
+chartRenderMs = Date.now()
+function renderChart(minRenderIntervalMs=50) {
+   if (document.visibilityState != "visible") {
+      // No reason to re-render the graph if the browser/tab is hidden
+      return
+   }
+
+   if (!document.querySelector('button[aria-controls="graph"]').classList.contains("active")) {
+      // No reason to re-render the graph if a different navigation tab is
+      // selected
+      return
+   }
+
+   // Don't re-render too often. Ex: if browser has been sleeping, when it
+   // awakens it might process 10s+ update messages from the websocket all
+   // at once... wait for them all to be processed before rendering the final
+   // result.
+   msSinceLastRender = Date.now() - chartRenderMs
+   chartRenderMs = Date.now()
+   if (msSinceLastRender < minRenderIntervalMs) {
+      clearTimeout(chartRenderTimeoutId)
+      chartRenderTimeoutId = setTimeout(renderChart, 50)
+      return
+   }
+
+   chart.render()
+}
+document.addEventListener("visibilitychange", renderChart);
+
 function connectWebsocket() {
    if (window.location.protocol == "https:") {
       protocol = "wss://"
@@ -309,7 +338,7 @@ function connectWebsocket() {
       if (serverDisconnectedBanner.classList.contains("show")) {
          console.log("websocket opened")
          serverDisconnectedBanner.classList.remove("show")
-         chart.render();
+         renderChart()
       }
    }
 
@@ -319,7 +348,7 @@ function connectWebsocket() {
          serverDisconnectedBanner.classList.add("show")
          ibbqConnection.classList.remove("connected")
          ibbqConnection.classList.remove("disconnected")
-         chart.render();
+         renderChart()
       }
       setTimeout(connectWebsocket, 1000)
    }
@@ -391,7 +420,6 @@ function connectWebsocket() {
             for (var i = 0; i < data.probe_readings.length; i++) {
                appendChartData(data.probe_readings[i]);
             }
-            chart.render();
 
             for (var i = 0; i < data.probe_readings[0].probes.length; i++) {
                var probeContainer = document.getElementById('probe-container-' + i)
@@ -425,6 +453,8 @@ function connectWebsocket() {
 
                updateProbeTempTarget(i)
             }
+
+            renderChart()
 
             /*
              * Update target temp alert
@@ -512,7 +542,7 @@ document.onreadystatechange = function() {
             itemclick: (e) => {
                e.dataSeries.visible = e.dataSeries.visible !== undefined &&
                                       !e.dataSeries.visible
-               e.chart.render()
+               renderChart(minRenderIntervalMs=0)
             }
          },
          toolTip: {
@@ -562,7 +592,7 @@ document.onreadystatechange = function() {
       document.querySelector('button[aria-controls="graph"]').addEventListener(
          'shown.bs.tab',
          function(event) {
-            chart.render();
+            renderChart(minRenderIntervalMs=0)
          }
       );
 
