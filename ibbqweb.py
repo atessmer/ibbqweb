@@ -26,9 +26,6 @@ async def device_manager(ibbq):
                 await ibbq.connect(ibbq.address)
             except asyncio.CancelledError:
                 return
-            except (asyncio.TimeoutError, ConnectionError):
-                await asyncio.sleep(1)
-                continue
             log.info("iBBQ Connected, RSSI: %ddBm", ibbq.rssi)
 
             await ibbq.subscribe()
@@ -49,8 +46,8 @@ async def device_manager(ibbq):
                               *temp_strs)
 
                 await asyncio.sleep(5)
-        except ConnectionError:
-            log.info("Reconnecting...")
+        except (ConnectionError, asyncio.TimeoutError):
+            log.exception("Reconnecting...")
             await asyncio.sleep(1)
 
 async def main():
