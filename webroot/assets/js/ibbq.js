@@ -327,11 +327,7 @@ function renderChart(minRenderIntervalMs=50) {
 document.addEventListener("visibilitychange", renderChart);
 
 function connectWebsocket() {
-   if (window.location.protocol == "https:") {
-      protocol = "wss://"
-   } else {
-      protocol = "ws://"
-   }
+   protocol = window.location.protocol == "https:" ? "wss://" : "ws://"
    ws = new WebSocket(protocol + window.location.host + "/ws")
 
    ws.onopen = function(event) {
