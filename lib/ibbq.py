@@ -135,6 +135,16 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
     async def await_change(self):
         await self._change_event.wait()
 
+    async def _write_gatt_char(self, char, data, response=False):
+        try:
+            await self._client.write_gatt_char(
+                self._characteristics[char.value],
+                data,
+                response=response,
+            )
+        except bleak.exc.BleakDBusError as ex:
+            raise ConnectionError("Failed to write gatt char") from ex
+
     def _cb_disconnect(self, client):
         self._notify_change()
 
@@ -160,7 +170,6 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         try:
             await self._client.connect()
         except (bleak.exc.BleakError, bleak.exc.BleakDBusError) as ex:
-            log.exception("Failure to connect to device")
             raise ConnectionError("Failure to connect to device") from ex
 
         await self._init_client()
@@ -174,10 +183,10 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
             char_uuid = UUID(characteristic.uuid)
             self._characteristics[char_uuid.time] = characteristic
 
-        await self._client.write_gatt_char(
-            self._characteristics[Characteristics.PAIR.value],
+        await self._write_gatt_char(
+            Characteristics.PAIR,
             PAIR_KEY,
-            response=True
+            response=True,
         )
 
         # Sync settings to device
@@ -202,26 +211,23 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
             self._characteristics[Characteristics.REALTIME_TEMP_NOTIFY.value],
             self._cb_realtime_temp_notify
         )
-        await self._client.write_gatt_char(
-            self._characteristics[Characteristics.SETTINGS_UPDATE.value],
+        await self._write_gatt_char(
+            Characteristics.SETTINGS_UPDATE,
             SettingsData.ENABLE_REALTIME_DATA.value,
-            response=False
         )
 
         await self._client.start_notify(
             self._characteristics[Characteristics.SETTINGS_NOTIFY.value],
             self._cb_settings_notify
         )
-        await self._client.write_gatt_char(
-            self._characteristics[Characteristics.SETTINGS_UPDATE.value],
+        await self._write_gatt_char(
+            Characteristics.SETTINGS_UPDATE,
             SettingsData.ENABLE_BATTERY_DATA.value,
-            response=False
         )
 
-        await self._client.write_gatt_char(
-            self._characteristics[Characteristics.SETTINGS_UPDATE.value],
+        await self._write_gatt_char(
+            Characteristics.SETTINGS_UPDATE,
             SettingsData.UNKNOWN1.value,
-            response=False
         )
 
 
@@ -229,10 +235,9 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         if not self.connected:
             raise ConnectionError("Device not connected")
 
-        await self._client.write_gatt_char(
-            self._characteristics[Characteristics.SETTINGS_UPDATE.value],
+        await self._write_gatt_char(
+            Characteristics.SETTINGS_UPDATE,
             data,
-            response=False
         )
         self._notify_change()
 
@@ -262,10 +267,9 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         data = b"\x01" + struct.pack("<Bhh", probe, dev_min_temp_c,
                                      dev_max_temp_c)
 
-        await self._client.write_gatt_char(
-            self._characteristics[Characteristics.SETTINGS_UPDATE.value],
+        await self._write_gatt_char(
+            Characteristics.SETTINGS_UPDATE,
             data,
-            response=False
         )
 
         if preset is None and min_temp_c is None and max_temp_c is None:
@@ -297,10 +301,9 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         log.info("Silencing alarm: probe = %s", "all" if probe == 0xff else str(probe))
 
         # See SettingsData.SILENCE_ALARM
-        await self._client.write_gatt_char(
-            self._characteristics[Characteristics.SETTINGS_UPDATE.value],
+        await self._write_gatt_char(
+            Characteristics.SETTINGS_UPDATE,
             struct.pack("6B", 0x04, probe, 0x00, 0x00, 0x00, 0x00),
-            response=False
         )
 
     def clear_history(self):
