@@ -52,6 +52,11 @@ function setUnit() {
    }))
 }
 
+function setMinY() {
+   chart.options.axisY.minimum = parseInt(this.value)
+   renderChart(minRenderIntervalMs=0)
+}
+
 function updateUnit() {
    ibbqUnitCelcius.labels.forEach(label =>
       label.textContent = ibbqUnitCelcius.checked ?
@@ -477,6 +482,8 @@ document.onreadystatechange = function() {
       ibbqBattery = document.querySelector("#ibbq-battery");
       ibbqUnitCelcius = document.getElementById("ibbq-unit-celcius");
       ibbqUnitCelcius.onchange = setUnit
+      chartMinY = document.getElementById("chart-min-y")
+      chartMinY.onchange = setMinY
 
       document.getElementById("ibbq-clear-history").addEventListener(
          'click', function(event) {
@@ -577,7 +584,7 @@ document.onreadystatechange = function() {
             labelFontSize: 20,
             logarithmic: false,
             logarithmBase: 10,
-            minimum: 0,
+            minimum: parseInt(chartMinY.value),
             stripLines: [],
          },
          data: [],
