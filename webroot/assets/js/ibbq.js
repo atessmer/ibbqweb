@@ -1,26 +1,26 @@
-var ws;
-var serverDisconnectedBanner;
-var offlineModeBanner;
-var ibbqConnection;
-var ibbqBattery;
-var ibbqUnitCelcius;
-var chart;
-var tempAlertModal;
+let ws;
+let serverDisconnectedBanner;
+let offlineModeBanner;
+let ibbqConnection;
+let ibbqBattery;
+let ibbqUnitCelcius;
+let chart;
+let tempAlertModal;
 
-var inOfflineMode = false;
-var inSilenceAlarmHandler = false;
+let inOfflineMode = false;
+let inSilenceAlarmHandler = false;
 
-var alertAudio = new Audio('/assets/audio/AlertTone.mp3');
+let alertAudio = new Audio('/assets/audio/AlertTone.mp3');
 
 // Match .probe-container:nth-child(...) .probe-idx .dot
-var probeColors = [
+let probeColors = [
   "#357bcc",
   "#32a852",
   "#d4872a",
   "#bdb320",
 ]
-var STRIPLINE_TEMP_OPACITY = 0.5
-var STRIPLINE_RANGE_OPACITY = 0.15
+let STRIPLINE_TEMP_OPACITY = 0.5
+let STRIPLINE_RANGE_OPACITY = 0.15
 
 function CtoF(temp) {
    return (temp * 9 / 5) + 32
@@ -66,10 +66,10 @@ function updateUnit() {
          label.dataset.on : label.dataset.off
    )
 
-   for (var i = 0; i < chart.options.data.length; i++) {
-      var dataSeries = chart.options.data[i];
-      for (var j = 0; j < dataSeries.dataPoints.length; j++) {
-         var dataPoint = dataSeries.dataPoints[j]
+   for (let i = 0; i < chart.options.data.length; i++) {
+      let dataSeries = chart.options.data[i];
+      for (let j = 0; j < dataSeries.dataPoints.length; j++) {
+         let dataPoint = dataSeries.dataPoints[j]
          dataPoint.y = tempCtoCurUnit(dataPoint.tempC)
       }
    }
@@ -78,10 +78,10 @@ function updateUnit() {
 
 // TODO: support Celcius presets too
 function updatePreset() {
-   var probeTempMin = document.getElementById('probe-temp-min')
-   var probeTempMax = document.getElementById('probe-temp-max')
+   let probeTempMin = document.getElementById('probe-temp-min')
+   let probeTempMax = document.getElementById('probe-temp-max')
 
-   var preset = document.querySelector('#probe-preset option:checked')
+   let preset = document.querySelector('#probe-preset option:checked')
    if (preset == null) {
       probeTempMin.disabled = true
       probeTempMin.value = null
@@ -103,8 +103,8 @@ function updatePreset() {
 }
 
 function clearProbeTarget() {
-   var probeIdx = document.getElementById('probe-settings-index').value
-   var probe = parseInt(probeIdx)
+   let probeIdx = document.getElementById('probe-settings-index').value
+   let probe = parseInt(probeIdx)
    if (isNaN(probe)) {
       return
    }
@@ -127,14 +127,14 @@ function clearProbeTarget() {
 }
 
 function saveProbeTarget() {
-   var probeIdx = document.getElementById('probe-settings-index').value
-   var probe = parseInt(probeIdx)
+   let probeIdx = document.getElementById('probe-settings-index').value
+   let probe = parseInt(probeIdx)
    if (isNaN(probe)) {
       return
    }
 
-   var presetInput = document.getElementById('probe-preset')
-   var preset = presetInput.value
+   let presetInput = document.getElementById('probe-preset')
+   let preset = presetInput.value
    if (preset == '_invalid_') {
       presetInput.classList.add('is-invalid')
       return
@@ -142,9 +142,9 @@ function saveProbeTarget() {
       presetInput.classList.remove('is-invalid')
    }
 
-   var valid = true
-   var minInput = document.getElementById('probe-temp-min')
-   var min = parseInt(minInput.value)
+   let valid = true
+   let minInput = document.getElementById('probe-temp-min')
+   let min = parseInt(minInput.value)
    if (!minInput.disabled && isNaN(min)) {
       minInput.classList.add('is-invalid')
       valid = false
@@ -152,8 +152,8 @@ function saveProbeTarget() {
       minInput.classList.remove('is-invalid')
    }
 
-   var maxInput = document.getElementById('probe-temp-max')
-   var max = parseInt(maxInput.value)
+   let maxInput = document.getElementById('probe-temp-max')
+   let max = parseInt(maxInput.value)
    if (isNaN(max) || (!isNaN(min) && min >= max)) {
       maxInput.classList.add('is-invalid')
       valid = false
@@ -181,9 +181,9 @@ function saveProbeTarget() {
 }
 
 function updateProbeTempTarget(probeIdx) {
-   var probeContainer = document.getElementById('probe-container-' + probeIdx)
-   var min = parseInt(probeContainer.getAttribute('data-ibbq-temp-min'))
-   var max = parseInt(probeContainer.getAttribute('data-ibbq-temp-max'))
+   let probeContainer = document.getElementById('probe-container-' + probeIdx)
+   let min = parseInt(probeContainer.getAttribute('data-ibbq-temp-min'))
+   let max = parseInt(probeContainer.getAttribute('data-ibbq-temp-max'))
 
    /*
     * Update temp-target text on Probes tab
@@ -196,7 +196,7 @@ function updateProbeTempTarget(probeIdx) {
    /*
     * Update stripline on chart
     */
-   var sl = chart.options.axisY.stripLines[probeIdx]
+   let sl = chart.options.axisY.stripLines[probeIdx]
    if (isNaN(max)) {
       delete sl.value
       delete sl.startValue
@@ -230,12 +230,12 @@ function appendChartData(probeReading) {
          probeReading['probes'][i] == dp[1].tempC && dp[1].tempC == dp[0].tempC
       );
 
-   for (var i = 0; i < probeReading.probes.length; i++) {
-      var tempC = probeReading.probes[i]
+   for (let i = 0; i < probeReading.probes.length; i++) {
+      let tempC = probeReading.probes[i]
 
-      var probecontainer = document.getElementById('probe-container-' + i)
+      let probecontainer = document.getElementById('probe-container-' + i)
       if (probecontainer == null) {
-         var template = document.getElementById('probe-container-template')
+         let template = document.getElementById('probe-container-template')
          probecontainer = template.content.firstElementChild.cloneNode(true)
 
          probecontainer.id = 'probe-container-' + i
@@ -248,7 +248,7 @@ function appendChartData(probeReading) {
          tempC === null ? '--' : tempCtoCurUnit(tempC) + "&deg;"
 
       if (chart.options.data.length < i + 1) {
-         var probeColor = i <= probeColors.length ? probeColors[i] : "#000"
+         let probeColor = i <= probeColors.length ? probeColors[i] : "#000"
          chart.options.data.push({
             type: "line",
             markerType: "none",
@@ -268,7 +268,7 @@ function appendChartData(probeReading) {
             label: "Probe " + (i+1) + " Target",
             labelBackgroundColor: 'transparent',
             labelFormatter: function(e) {
-               var sl = e.stripLine
+               let sl = e.stripLine
                if (sl.startValue !== null && sl.endValue !== null) {
                   return sl.startValue + '° ~ ' + sl.endValue + '°'
                } else if (sl.value !== null) {
@@ -296,8 +296,8 @@ function appendChartData(probeReading) {
 
    if (probeReading.ts >= chart.options.axisX.maximum) {
       // Increase by 25%
-      var min = chart.options.axisX.minimum
-      var max = chart.options.axisX.maximum
+      let min = chart.options.axisX.minimum
+      let max = chart.options.axisX.maximum
       chart.options.axisX.maximum = min + ((max-min) * 1.25)
    }
 }
@@ -335,9 +335,9 @@ document.addEventListener("visibilitychange", renderChart);
 function resetChartData() {
    chart.options.data = []
    chart.options.axisY.stripLines = []
-   var xMin = new Date().getTime()
-   for (var i = 0; i < data.probe_readings.length; i++) {
-      var reading = data.probe_readings[i]
+   let xMin = new Date().getTime()
+   for (let i = 0; i < data.probe_readings.length; i++) {
+      let reading = data.probe_readings[i]
       if (reading.probes.some(temp => temp != null)) {
          xMin = reading.ts
          break
@@ -430,13 +430,13 @@ function connectWebsocket() {
          }
 
          if (data.full_history || data.connected) {
-            for (var i = 0; i < data.probe_readings.length; i++) {
+            for (let i = 0; i < data.probe_readings.length; i++) {
                appendChartData(data.probe_readings[i]);
             }
 
-            for (var i = 0; i < data.probe_readings[0].probes.length; i++) {
-               var probeContainer = document.getElementById('probe-container-' + i)
-               var targetTemp = data.target_temps[i]
+            for (let i = 0; i < data.probe_readings[0].probes.length; i++) {
+               let probeContainer = document.getElementById('probe-container-' + i)
+               let targetTemp = data.target_temps[i]
 
                if (targetTemp !== undefined) {
                   if (targetTemp.preset == null) {
@@ -514,10 +514,10 @@ document.onreadystatechange = function() {
       document.getElementById("ibbq-download").addEventListener(
          'click', function(event) {
             probe_readings = new Map()
-            for (var i = 0; i < chart.options.data.length; i++) {
-               var dataSeries = chart.options.data[i];
-               for (var j = 0; j < dataSeries.dataPoints.length; j++) {
-                  var dataPoint = dataSeries.dataPoints[j]
+            for (let i = 0; i < chart.options.data.length; i++) {
+               let dataSeries = chart.options.data[i];
+               for (let j = 0; j < dataSeries.dataPoints.length; j++) {
+                  let dataPoint = dataSeries.dataPoints[j]
 
                   if (probe_readings.get(dataPoint.x) == undefined) {
                      probe_readings.set(dataPoint.x, [])
@@ -544,7 +544,7 @@ document.onreadystatechange = function() {
 
       document.getElementById("ibbq-upload").addEventListener(
          'change', function(e) {
-            var reader = new FileReader()
+            let reader = new FileReader()
             reader.readAsText(e.target.files[0], 'UTF-8')
             reader.onload = e2 => {
                data = JSON.parse(e2.target.result);
@@ -554,7 +554,7 @@ document.onreadystatechange = function() {
                ws.close()
 
                resetChartData()
-               for (var i = 0; i < data.probe_readings.length; i++) {
+               for (let i = 0; i < data.probe_readings.length; i++) {
                   appendChartData(data.probe_readings[i]);
                }
             }
@@ -570,15 +570,15 @@ document.onreadystatechange = function() {
 
       document.getElementById('probeSettingsModal').addEventListener(
          'show.bs.modal', function(event) {
-            var probeContainer = event.relatedTarget
+            let probeContainer = event.relatedTarget
             while (!probeContainer.classList.contains('probe-container')) {
                probeContainer = probeContainer.parentElement
             }
-            var probeIdx = probeContainer.getAttribute('data-ibbq-probe-idx')
+            let probeIdx = probeContainer.getAttribute('data-ibbq-probe-idx')
 
             document.getElementById('probe-settings-index').value = probeIdx
 
-            var preset = probeContainer.getAttribute('data-ibbq-preset') || '0'
+            let preset = probeContainer.getAttribute('data-ibbq-preset') || '0'
             document.getElementById('probe-preset').value = preset
 
             document.getElementById('probe-temp-min').value =
@@ -606,7 +606,7 @@ document.onreadystatechange = function() {
          }
       )
 
-      var options = {
+      let options = {
          animationEnabled: true,
          legend: {
             cursor: "pointer",
@@ -625,7 +625,7 @@ document.onreadystatechange = function() {
                   '<div style="font-weight: bold; text-decoration: underline; margin-bottom: 5px;">' +
                      CanvasJS.formatDate(e.entries[0].dataPoint.x, "hh:mm:ss TT") +
                   '</div>';
-               for (var entry of e.entries) {
+               for (let entry of e.entries) {
                   if (entry.dataPoint.y === undefined) {
                      continue;
                   }
@@ -671,8 +671,8 @@ document.onreadystatechange = function() {
 
       alertAudio.muted = true;
       alertAudio.play().catch(error => {
-         var modalEl = document.getElementById('audioNoticeModal');
-         var modal = new bootstrap.Modal(modalEl);
+         let modalEl = document.getElementById('audioNoticeModal');
+         let modal = new bootstrap.Modal(modalEl);
          modal.show();
          return new Promise((resolve, reject) => {
             modalEl.addEventListener('hide.bs.modal', event => {
@@ -694,7 +694,7 @@ document.onreadystatechange = function() {
                "check browser documentation for details:\n\n" + error);
       });
 
-      var tempAlertModalEl = document.getElementById('tempAlertModal');
+      let tempAlertModalEl = document.getElementById('tempAlertModal');
       tempAlertModal = new bootstrap.Modal(tempAlertModalEl);
       tempAlertModalEl.addEventListener('hide.bs.modal', event => {
          alertAudio.pause();
