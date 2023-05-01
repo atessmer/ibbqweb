@@ -213,8 +213,6 @@ function updateProbeTempTarget(probeIdx) {
 }
 
 function appendChartData(probeReading) {
-   var ts = new Date(probeReading.ts);
-
    // When the temp remains the same, we just need the first/last timestamps
    // of those values to draw a straight line.
    //
@@ -255,6 +253,7 @@ function appendChartData(probeReading) {
             showInLegend: true,
             legendText: "N/A",
             color: probeColor,
+            xValueType: "dateTime",
             dataPoints: [],
          })
 
@@ -282,22 +281,21 @@ function appendChartData(probeReading) {
          tempC != null ? tempCtoCurUnit(tempC) + "°" : "N/A"
 
       if (duplicateReading) {
-         lastReadings[i][1].x = ts;
+         lastReadings[i][1].x = probeReading.ts;
       } else {
          chart.options.data[i].dataPoints.push({
-            x: ts,
+            x: probeReading.ts,
             y: tempCtoCurUnit(tempC),
             tempC: tempC,
          })
       }
    }
 
-   if (ts >= chart.options.axisX.maximum) {
+   if (probeReading.ts >= chart.options.axisX.maximum) {
       // Increase by 25%
-      var min = chart.options.axisX.minimum.getTime()
-      var max = chart.options.axisX.maximum.getTime()
-      var newmax = new Date(min + ((max-min) * 1.25))
-      chart.options.axisX.maximum = new Date(newmax)
+      var min = chart.options.axisX.minimum
+      var max = chart.options.axisX.maximum
+      chart.options.axisX.maximum = min + ((max-min) * 1.25)
    }
 }
 
@@ -404,17 +402,16 @@ function connectWebsocket() {
             // Reset chart
             chart.options.data = [];
             chart.options.axisY.stripLines = [];
-            var xMin = new Date();
+            var xMin = new Date().getTime();
             for (var i = 0; i < data.probe_readings.length; i++) {
                var reading = data.probe_readings[i];
                if (reading.probes.some(temp => temp != null)) {
-                  xMin = new Date(reading.ts);
+                  xMin = reading.ts;
                   break;
                }
             }
-            var xMax = new Date(xMin.getTime() + (10 * 60 * 1000)); // +10 min
             chart.options.axisX.minimum = xMin;
-            chart.options.axisX.maximum = xMax;
+            chart.options.axisX.maximum = xMin + (10 * 60 * 1000); // +10 min
          }
 
          if (data.full_history || data.connected) {

@@ -125,7 +125,7 @@ class WebServer:
                 if reading is None:
                     payload.update({
                         "probe_readings": [{
-                            "ts": datetime.datetime.now().isoformat()[:-5],
+                            "ts": int(datetime.datetime.now().timestamp() * 1000),
                             "probes": [],
                         }],
                     })
@@ -134,7 +134,7 @@ class WebServer:
                     payload.update({
                         "probe_readings": [
                             {
-                                "ts": e["timestamp"].isoformat()[:-5],
+                                "ts": int(e["timestamp"].timestamp() * 1000),
                                 "probes": e["probes"],
                             } for e in (
                                 self._ibbq.probe_readings_all if full_history
