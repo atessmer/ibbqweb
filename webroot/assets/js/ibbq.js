@@ -10,6 +10,9 @@ let tempAlertModal;
 let inOfflineMode = false;
 let inSilenceAlarmHandler = false;
 
+let chartRenderTimeoutId = -1;
+let chartRenderMs = Date.now()
+
 let alertAudio = new Audio('/assets/audio/AlertTone.mp3');
 
 // Match .probe-container:nth-child(...) .probe-idx .dot
@@ -22,62 +25,17 @@ let probeColors = [
 let STRIPLINE_TEMP_OPACITY = 0.5
 let STRIPLINE_RANGE_OPACITY = 0.15
 
-function CtoF(temp) {
-   return (temp * 9 / 5) + 32
-}
+CtoF = (temp) => (temp * 9 / 5) + 32;
+FtoC = (temp) => (temp - 32) * 5 / 9;
 
-function FtoC(temp) {
-   return (temp - 32) * 5 / 9
-}
+isUnitC = () => ibbqUnitCelcius.checked
+isUnitF = () => !isUnitC()
 
-function tempCtoCurUnit(tempC) {
-   if (tempC != null && !ibbqUnitCelcius.checked) {
-      return CtoF(tempC);
-   }
-   return tempC;
-}
-
-function tempCurUnittoC(temp) {
-   if (temp != null && !ibbqUnitCelcius.checked) {
-      return FtoC(temp);
-   }
-   return temp;
-}
-
-function setUnit() {
-   if (ws.readyState != 1) {
-      // Not connected
-      return
-   }
-   ws.send(JSON.stringify({
-      cmd: 'set_unit',
-      unit: this.checked ? 'C' : 'F',
-   }))
-}
-
-function setMinY() {
-   chart.options.axisY.minimum = parseInt(this.value)
-   renderChart(minRenderIntervalMs=0)
-}
-
-function updateUnit() {
-   ibbqUnitCelcius.labels.forEach(label =>
-      label.textContent = ibbqUnitCelcius.checked ?
-         label.dataset.on : label.dataset.off
-   )
-
-   for (let i = 0; i < chart.options.data.length; i++) {
-      let dataSeries = chart.options.data[i];
-      for (let j = 0; j < dataSeries.dataPoints.length; j++) {
-         let dataPoint = dataSeries.dataPoints[j]
-         dataPoint.y = tempCtoCurUnit(dataPoint.tempC)
-      }
-   }
-   renderChart(minRenderIntervalMs=0)
-}
+tempFromC = (temp) => temp != null && isUnitF() ? CtoF(temp) : temp
+tempToC = (temp) => temp != null && isUnitF() ? FtoC(temp) : temp
 
 // TODO: support Celcius presets too
-function updatePreset() {
+updatePreset = () => {
    let probeTempMin = document.getElementById('probe-temp-min')
    let probeTempMax = document.getElementById('probe-temp-max')
 
@@ -102,85 +60,7 @@ function updatePreset() {
    }
 }
 
-function clearProbeTarget() {
-   let probeIdx = document.getElementById('probe-settings-index').value
-   let probe = parseInt(probeIdx)
-   if (isNaN(probe)) {
-      return
-   }
-
-   if (ws.readyState != 1) {
-      // Not connected
-      return
-   }
-   ws.send(JSON.stringify({
-      cmd: 'set_probe_target_temp',
-      probe: probe,
-      preset: null,
-      min_temp: null,
-      max_temp: null,
-   }))
-
-   bootstrap.Modal.getInstance(
-      document.getElementById('probeSettingsModal')
-   ).hide()
-}
-
-function saveProbeTarget() {
-   let probeIdx = document.getElementById('probe-settings-index').value
-   let probe = parseInt(probeIdx)
-   if (isNaN(probe)) {
-      return
-   }
-
-   let presetInput = document.getElementById('probe-preset')
-   let preset = presetInput.value
-   if (preset == '_invalid_') {
-      presetInput.classList.add('is-invalid')
-      return
-   } else {
-      presetInput.classList.remove('is-invalid')
-   }
-
-   let valid = true
-   let minInput = document.getElementById('probe-temp-min')
-   let min = parseInt(minInput.value)
-   if (!minInput.disabled && isNaN(min)) {
-      minInput.classList.add('is-invalid')
-      valid = false
-   } else {
-      minInput.classList.remove('is-invalid')
-   }
-
-   let maxInput = document.getElementById('probe-temp-max')
-   let max = parseInt(maxInput.value)
-   if (isNaN(max) || (!isNaN(min) && min >= max)) {
-      maxInput.classList.add('is-invalid')
-      valid = false
-   } else {
-      maxInput.classList.remove('is-invalid')
-   }
-
-   if (valid) {
-      if (ws.readyState != 1) {
-         // Not connected
-         return
-      }
-      ws.send(JSON.stringify({
-         cmd: 'set_probe_target_temp',
-         probe: probe,
-         preset: preset,
-         min_temp: isNaN(min) ? null : tempCurUnittoC(min),
-         max_temp: tempCurUnittoC(max),
-      }))
-
-      bootstrap.Modal.getInstance(
-         document.getElementById('probeSettingsModal')
-      ).hide()
-   }
-}
-
-function updateProbeTempTarget(probeIdx) {
+updateProbeTempTarget = (probeIdx) => {
    let probeContainer = document.getElementById('probe-container-' + probeIdx)
    let min = parseInt(probeContainer.getAttribute('data-ibbq-temp-min'))
    let max = parseInt(probeContainer.getAttribute('data-ibbq-temp-max'))
@@ -188,7 +68,7 @@ function updateProbeTempTarget(probeIdx) {
    /*
     * Update temp-target text on Probes tab
     */
-   probeContainer.querySelector('.probe-temp-target').innerHTML =
+   probeContainer.getElementsByClassName('probe-temp-target')[0].innerHTML =
       isNaN(max) ? '&nbsp;' :
       isNaN(min) ? max + '&deg;F' :
                    min + '&deg;F ~ ' + max + '&deg;F'
@@ -215,7 +95,7 @@ function updateProbeTempTarget(probeIdx) {
    }
 }
 
-function appendChartData(probeReading) {
+appendChartData = (probeReading) => {
    // When the temp remains the same, we just need the first/last timestamps
    // of those values to draw a straight line.
    //
@@ -244,8 +124,8 @@ function appendChartData(probeReading) {
          document.getElementById('probe-list').append(probecontainer);
       }
 
-      probecontainer.querySelector('.probe-temp-current').innerHTML =
-         tempC === null ? '--' : tempCtoCurUnit(tempC) + "&deg;"
+      probecontainer.getElementsByClassName('probe-temp-current')[0].innerHTML =
+         tempC === null ? '--' : tempFromC(tempC) + "&deg;"
 
       if (chart.options.data.length < i + 1) {
          let probeColor = i <= probeColors.length ? probeColors[i] : "#000"
@@ -267,7 +147,7 @@ function appendChartData(probeReading) {
             labelFontColor: probeColor,
             label: "Probe " + (i+1) + " Target",
             labelBackgroundColor: 'transparent',
-            labelFormatter: function(e) {
+            labelFormatter: (e) => {
                let sl = e.stripLine
                if (sl.startValue !== null && sl.endValue !== null) {
                   return sl.startValue + '° ~ ' + sl.endValue + '°'
@@ -281,14 +161,14 @@ function appendChartData(probeReading) {
       }
 
       chart.options.data[i].legendText =
-         tempC != null ? tempCtoCurUnit(tempC) + "°" : "N/A"
+         tempC != null ? tempFromC(tempC) + "°" : "N/A"
 
       if (duplicateReading) {
          lastReadings[i][1].x = probeReading.ts;
       } else {
          chart.options.data[i].dataPoints.push({
             x: probeReading.ts,
-            y: tempCtoCurUnit(tempC),
+            y: tempFromC(tempC),
             tempC: tempC,
          })
       }
@@ -302,9 +182,7 @@ function appendChartData(probeReading) {
    }
 }
 
-chartRenderTimeoutId = -1;
-chartRenderMs = Date.now()
-function renderChart(minRenderIntervalMs=50) {
+renderChart = (minRenderIntervalMs=50) => {
    if (document.visibilityState != "visible") {
       // No reason to re-render the graph if the browser/tab is hidden
       return
@@ -330,9 +208,8 @@ function renderChart(minRenderIntervalMs=50) {
 
    chart.render()
 }
-document.addEventListener("visibilitychange", renderChart);
 
-function resetChartData() {
+resetChartData = () => {
    chart.options.data = []
    chart.options.axisY.stripLines = []
    let xMin = new Date().getTime()
@@ -347,7 +224,7 @@ function resetChartData() {
    chart.options.axisX.maximum = xMin + (10 * 60 * 1000) // +10 min
 }
 
-function connectWebsocket() {
+connectWebsocket = () => {
    if (inOfflineMode) {
       return
    }
@@ -355,7 +232,7 @@ function connectWebsocket() {
    protocol = window.location.protocol == "https:" ? "wss://" : "ws://"
    ws = new WebSocket(protocol + window.location.host + "/ws")
 
-   ws.onopen = function(event) {
+   ws.onopen = (e) => {
       if (serverDisconnectedBanner.classList.contains("show") || offlineModeBanner.classList.contains("show")) {
          console.log("websocket opened")
          serverDisconnectedBanner.classList.remove("show")
@@ -364,14 +241,14 @@ function connectWebsocket() {
       }
    }
 
-   ws.onclose = function(event) {
+   ws.onclose = (e) => {
       ibbqConnection.classList.remove("connected")
       ibbqConnection.classList.remove("disconnected")
       if (inOfflineMode) {
          serverDisconnectedBanner.classList.remove("show")
          offlineModeBanner.classList.add("show")
       } else if (!serverDisconnectedBanner.classList.contains("show")) {
-         console.warn("websocket closed: [" + event.code + "]")
+         console.warn("websocket closed: [" + e.code + "]")
          serverDisconnectedBanner.classList.add("show")
          offlineModeBanner.classList.remove("show")
          setTimeout(connectWebsocket, 1000)
@@ -379,8 +256,8 @@ function connectWebsocket() {
       }
    }
 
-   ws.onmessage = function (event) {
-      data = JSON.parse(event.data)
+   ws.onmessage = (e) => {
+      data = JSON.parse(e.data)
 
       if (data.cmd == "state_update") {
          /*
@@ -449,14 +326,14 @@ function connectWebsocket() {
                      probeContainer.removeAttribute('data-ibbq-temp-min')
                   } else {
                      probeContainer.setAttribute('data-ibbq-temp-min',
-                                                 tempCtoCurUnit(targetTemp.min_temp))
+                                                 tempFromC(targetTemp.min_temp))
                   }
 
                   if (targetTemp.max_temp == null) {
                      probeContainer.removeAttribute('data-ibbq-temp-max')
                   } else {
                      probeContainer.setAttribute('data-ibbq-temp-max',
-                                                 tempCtoCurUnit(targetTemp.max_temp))
+                                                 tempFromC(targetTemp.max_temp))
                   }
                } else {
                   probeContainer.removeAttribute('data-ibbq-preset')
@@ -481,130 +358,214 @@ function connectWebsocket() {
             }
          }
       } else if (data.cmd == "unit_update") {
+         // Update checkbox
          ibbqUnitCelcius.checked = (data.unit == "C");
-         updateUnit()
+
+         // Update checkbox label
+         ibbqUnitCelcius.labels.forEach(label =>
+            label.textContent = ibbqUnitCelcius.checked ?
+               label.dataset.on : label.dataset.off
+         )
+
+         // Update chart
+         for (let i = 0; i < chart.options.data.length; i++) {
+            let dataSeries = chart.options.data[i];
+            for (let j = 0; j < dataSeries.dataPoints.length; j++) {
+               let dataPoint = dataSeries.dataPoints[j]
+               dataPoint.y = tempFromC(dataPoint.tempC)
+            }
+         }
+         renderChart(minRenderIntervalMs=0)
       }
    }
 }
 
-document.onreadystatechange = function() {
+document.onreadystatechange = () => {
    if (document.readyState === "complete") {
       serverDisconnectedBanner = document.getElementById("server-disconnected-banner");
       offlineModeBanner = document.getElementById("offline-mode-banner");
-      ibbqConnection = document.querySelector("#ibbq-connection");
-      ibbqBattery = document.querySelector("#ibbq-battery");
+      ibbqConnection = document.getElementById("ibbq-connection");
+      ibbqBattery = document.getElementById("ibbq-battery");
       ibbqUnitCelcius = document.getElementById("ibbq-unit-celcius");
-      ibbqUnitCelcius.onchange = setUnit
       chartMinY = document.getElementById("chart-min-y")
-      chartMinY.onchange = setMinY
 
-      document.getElementById("ibbq-clear-history").addEventListener(
-         'click', function(event) {
+      ibbqUnitCelcius.addEventListener('click', (e) => {
+         if (ws.readyState != 1) {
+            // Not connected
+            return
+         }
+         ws.send(JSON.stringify({
+            cmd: 'set_unit',
+            unit: isUnitC() ? 'C' : 'F',
+         }))
+      })
+
+      chartMinY.addEventListener('change', (e) => {
+         chart.options.axisY.minimum = parseInt(e.target.value)
+         renderChart(minRenderIntervalMs=0)
+      })
+
+      document.getElementById("ibbq-clear-history").addEventListener('click', (e) => {
+         if (ws.readyState != 1) {
+            // Not connected
+            return;
+         }
+
+         ws.send(JSON.stringify({
+            cmd: 'clear_history',
+         }))
+      })
+
+      document.getElementById("ibbq-download").addEventListener('click', (e) => {
+         probe_readings = new Map()
+         for (let i = 0; i < chart.options.data.length; i++) {
+            let dataSeries = chart.options.data[i];
+            for (let j = 0; j < dataSeries.dataPoints.length; j++) {
+               let dataPoint = dataSeries.dataPoints[j]
+
+               if (probe_readings.get(dataPoint.x) == undefined) {
+                  probe_readings.set(dataPoint.x, [])
+               }
+               probe_readings.get(dataPoint.x)[i] = dataPoint.tempC
+            }
+         }
+
+         data = {
+            'probe_readings': Array.from(probe_readings.keys()).reduce((result, ts) => {
+               result.push({
+                  'ts': ts,
+                  'probes': probe_readings.get(ts)
+               })
+               return result
+             }, []),
+         }
+
+         blob = new Blob([JSON.stringify(data)], {type: 'application/json'}) // text/plain
+         e.target.href = window.URL.createObjectURL(blob)
+         e.target.download = 'ibbq_' + new Date().toJSON().slice(0, -5) + '.json'
+      })
+
+      document.getElementById("ibbq-upload").addEventListener('change', (e) => {
+         let reader = new FileReader()
+         reader.readAsText(e.target.files[0], 'UTF-8')
+         reader.onload = (_e) => {
+            data = JSON.parse(_e.target.result);
+
+            // Disconnect from server
+            inOfflineMode = true
+            ws.close()
+
+            resetChartData()
+            for (let i = 0; i < data.probe_readings.length; i++) {
+               appendChartData(data.probe_readings[i]);
+            }
+         }
+      })
+
+      document.getElementById('server-reconnect').addEventListener('click', (e) => {
+         inOfflineMode = false
+         connectWebsocket()
+      })
+
+      document.getElementById('probeSettingsModal').addEventListener('show.bs.modal', (e) => {
+         let probeContainer = e.relatedTarget
+         while (!probeContainer.classList.contains('probe-container')) {
+            probeContainer = probeContainer.parentElement
+         }
+         let probeIdx = probeContainer.getAttribute('data-ibbq-probe-idx')
+
+         document.getElementById('probe-settings-index').value = probeIdx
+
+         let preset = probeContainer.getAttribute('data-ibbq-preset') || '0'
+         document.getElementById('probe-preset').value = preset
+
+         document.getElementById('probe-temp-min').value =
+            probeContainer.getAttribute('data-ibbq-temp-min')
+         document.getElementById('probe-temp-max').value =
+            probeContainer.getAttribute('data-ibbq-temp-max')
+
+         updatePreset()
+      })
+
+      document.getElementById('probe-preset').addEventListener('change', (e) => updatePreset())
+
+      document.getElementById('probeSettingsClear').addEventListener('click', (e) => {
+         let probeIdx = document.getElementById('probe-settings-index').value
+         let probe = parseInt(probeIdx)
+         if (isNaN(probe)) {
+            return
+         }
+
+         if (ws.readyState != 1) {
+            // Not connected
+            return
+         }
+         ws.send(JSON.stringify({
+            cmd: 'set_probe_target_temp',
+            probe: probe,
+            preset: null,
+            min_temp: null,
+            max_temp: null,
+         }))
+
+         bootstrap.Modal.getInstance(
+            document.getElementById('probeSettingsModal')
+         ).hide()
+      })
+
+      document.getElementById('probeSettingsSave').addEventListener('click', (e) => {
+         let probeIdx = document.getElementById('probe-settings-index').value
+         let probe = parseInt(probeIdx)
+         if (isNaN(probe)) {
+            return
+         }
+
+         let presetInput = document.getElementById('probe-preset')
+         let preset = presetInput.value
+         if (preset == '_invalid_') {
+            presetInput.classList.add('is-invalid')
+            return
+         } else {
+            presetInput.classList.remove('is-invalid')
+         }
+
+         let valid = true
+         let minInput = document.getElementById('probe-temp-min')
+         let min = parseInt(minInput.value)
+         if (!minInput.disabled && isNaN(min)) {
+            minInput.classList.add('is-invalid')
+            valid = false
+         } else {
+            minInput.classList.remove('is-invalid')
+         }
+
+         let maxInput = document.getElementById('probe-temp-max')
+         let max = parseInt(maxInput.value)
+         if (isNaN(max) || (!isNaN(min) && min >= max)) {
+            maxInput.classList.add('is-invalid')
+            valid = false
+         } else {
+            maxInput.classList.remove('is-invalid')
+         }
+
+         if (valid) {
             if (ws.readyState != 1) {
                // Not connected
-               return;
+               return
             }
-
             ws.send(JSON.stringify({
-               cmd: 'clear_history',
+               cmd: 'set_probe_target_temp',
+               probe: probe,
+               preset: preset,
+               min_temp: isNaN(min) ? null : tempToC(min),
+               max_temp: tempToC(max),
             }))
+
+            bootstrap.Modal.getInstance(
+               document.getElementById('probeSettingsModal')
+            ).hide()
          }
-      )
-
-      document.getElementById("ibbq-download").addEventListener(
-         'click', function(event) {
-            probe_readings = new Map()
-            for (let i = 0; i < chart.options.data.length; i++) {
-               let dataSeries = chart.options.data[i];
-               for (let j = 0; j < dataSeries.dataPoints.length; j++) {
-                  let dataPoint = dataSeries.dataPoints[j]
-
-                  if (probe_readings.get(dataPoint.x) == undefined) {
-                     probe_readings.set(dataPoint.x, [])
-                  }
-                  probe_readings.get(dataPoint.x)[i] = dataPoint.tempC
-               }
-            }
-
-            data = {
-               'probe_readings': Array.from(probe_readings.keys()).reduce((result, ts) => {
-                  result.push({
-                     'ts': ts,
-                     'probes': probe_readings.get(ts)
-                  })
-                  return result
-                }, []),
-            }
-
-            blob = new Blob([JSON.stringify(data)], {type: 'application/json'}) // text/plain
-            this.href = window.URL.createObjectURL(blob)
-            this.download = 'ibbq_' + new Date().toJSON().slice(0, -5) + '.json'
-         }
-      )
-
-      document.getElementById("ibbq-upload").addEventListener(
-         'change', function(e) {
-            let reader = new FileReader()
-            reader.readAsText(e.target.files[0], 'UTF-8')
-            reader.onload = e2 => {
-               data = JSON.parse(e2.target.result);
-
-               // Disconnect from server
-               inOfflineMode = true
-               ws.close()
-
-               resetChartData()
-               for (let i = 0; i < data.probe_readings.length; i++) {
-                  appendChartData(data.probe_readings[i]);
-               }
-            }
-         }
-      )
-
-      document.getElementById('server-reconnect').addEventListener(
-         'click', function(event) {
-            inOfflineMode = false
-            connectWebsocket()
-         }
-      )
-
-      document.getElementById('probeSettingsModal').addEventListener(
-         'show.bs.modal', function(event) {
-            let probeContainer = event.relatedTarget
-            while (!probeContainer.classList.contains('probe-container')) {
-               probeContainer = probeContainer.parentElement
-            }
-            let probeIdx = probeContainer.getAttribute('data-ibbq-probe-idx')
-
-            document.getElementById('probe-settings-index').value = probeIdx
-
-            let preset = probeContainer.getAttribute('data-ibbq-preset') || '0'
-            document.getElementById('probe-preset').value = preset
-
-            document.getElementById('probe-temp-min').value =
-               probeContainer.getAttribute('data-ibbq-temp-min')
-            document.getElementById('probe-temp-max').value =
-               probeContainer.getAttribute('data-ibbq-temp-max')
-
-            updatePreset()
-         }
-      )
-
-      document.getElementById('probe-preset').addEventListener(
-         'change', function(event) {
-            updatePreset()
-         }
-      )
-      document.getElementById('probeSettingsClear').addEventListener(
-         'click', function(event) {
-            clearProbeTarget()
-         }
-      )
-      document.getElementById('probeSettingsSave').addEventListener(
-         'click', function(event) {
-            saveProbeTarget()
-         }
-      )
+      })
 
       let options = {
          animationEnabled: true,
@@ -620,7 +581,7 @@ document.onreadystatechange = function() {
          },
          toolTip: {
             shared: true,
-            contentFormatter: function(e) {
+            contentFormatter: (e) => {
                content =
                   '<div style="font-weight: bold; text-decoration: underline; margin-bottom: 5px;">' +
                      CanvasJS.formatDate(e.entries[0].dataPoint.x, "hh:mm:ss TT") +
@@ -643,9 +604,7 @@ document.onreadystatechange = function() {
          axisX: {
             labelAngle: -25,
             labelFontSize: 20,
-            labelFormatter: function (e) {
-               return CanvasJS.formatDate(e.value, "hh:mm TT")
-            },
+            labelFormatter: (e) => CanvasJS.formatDate(e.value, "hh:mm TT"),
             minimum: new Date(),
             maximum: new Date(new Date().getTime() + (10 * 60 * 1000)), // +10 min
          },
@@ -661,12 +620,13 @@ document.onreadystatechange = function() {
       };
       chart = new CanvasJS.Chart("graph", options);
 
+      // Rendering is skipped when the page is not visible; make sure to render
+      // any incremental changes received when the page becomes visible again
+      document.addEventListener("visibilitychange", renderChart);
+
       // Workaround graph not rendering correct size initially
       document.querySelector('button[aria-controls="graph"]').addEventListener(
-         'shown.bs.tab',
-         function(event) {
-            renderChart(minRenderIntervalMs=0)
-         }
+         'shown.bs.tab', (e) => renderChart(minRenderIntervalMs=0)
       );
 
       alertAudio.muted = true;
