@@ -1,10 +1,13 @@
 var ws;
 var serverDisconnectedBanner;
+var offlineModeBanner;
 var ibbqConnection;
 var ibbqBattery;
 var ibbqUnitCelcius;
 var chart;
 var tempAlertModal;
+
+var inOfflineMode = false;
 var inSilenceAlarmHandler = false;
 
 var alertAudio = new Audio('/assets/audio/AlertTone.mp3');
@@ -329,27 +332,51 @@ function renderChart(minRenderIntervalMs=50) {
 }
 document.addEventListener("visibilitychange", renderChart);
 
+function resetChartData() {
+   chart.options.data = []
+   chart.options.axisY.stripLines = []
+   var xMin = new Date().getTime()
+   for (var i = 0; i < data.probe_readings.length; i++) {
+      var reading = data.probe_readings[i]
+      if (reading.probes.some(temp => temp != null)) {
+         xMin = reading.ts
+         break
+      }
+   }
+   chart.options.axisX.minimum = xMin
+   chart.options.axisX.maximum = xMin + (10 * 60 * 1000) // +10 min
+}
+
 function connectWebsocket() {
+   if (inOfflineMode) {
+      return
+   }
+
    protocol = window.location.protocol == "https:" ? "wss://" : "ws://"
    ws = new WebSocket(protocol + window.location.host + "/ws")
 
    ws.onopen = function(event) {
-      if (serverDisconnectedBanner.classList.contains("show")) {
+      if (serverDisconnectedBanner.classList.contains("show") || offlineModeBanner.classList.contains("show")) {
          console.log("websocket opened")
          serverDisconnectedBanner.classList.remove("show")
+         offlineModeBanner.classList.remove("show")
          renderChart()
       }
    }
 
    ws.onclose = function(event) {
-      if (!serverDisconnectedBanner.classList.contains("show")) {
+      ibbqConnection.classList.remove("connected")
+      ibbqConnection.classList.remove("disconnected")
+      if (inOfflineMode) {
+         serverDisconnectedBanner.classList.remove("show")
+         offlineModeBanner.classList.add("show")
+      } else if (!serverDisconnectedBanner.classList.contains("show")) {
          console.warn("websocket closed: [" + event.code + "]")
          serverDisconnectedBanner.classList.add("show")
-         ibbqConnection.classList.remove("connected")
-         ibbqConnection.classList.remove("disconnected")
+         offlineModeBanner.classList.remove("show")
+         setTimeout(connectWebsocket, 1000)
          renderChart()
       }
-      setTimeout(connectWebsocket, 1000)
    }
 
    ws.onmessage = function (event) {
@@ -399,19 +426,7 @@ function connectWebsocket() {
           * Update probe data (probe and chart tabs)
           */
          if (data.full_history) {
-            // Reset chart
-            chart.options.data = [];
-            chart.options.axisY.stripLines = [];
-            var xMin = new Date().getTime();
-            for (var i = 0; i < data.probe_readings.length; i++) {
-               var reading = data.probe_readings[i];
-               if (reading.probes.some(temp => temp != null)) {
-                  xMin = reading.ts;
-                  break;
-               }
-            }
-            chart.options.axisX.minimum = xMin;
-            chart.options.axisX.maximum = xMin + (10 * 60 * 1000); // +10 min
+            resetChartData()
          }
 
          if (data.full_history || data.connected) {
@@ -475,6 +490,7 @@ function connectWebsocket() {
 document.onreadystatechange = function() {
    if (document.readyState === "complete") {
       serverDisconnectedBanner = document.getElementById("server-disconnected-banner");
+      offlineModeBanner = document.getElementById("offline-mode-banner");
       ibbqConnection = document.querySelector("#ibbq-connection");
       ibbqBattery = document.querySelector("#ibbq-battery");
       ibbqUnitCelcius = document.getElementById("ibbq-unit-celcius");
@@ -492,6 +508,63 @@ document.onreadystatechange = function() {
             ws.send(JSON.stringify({
                cmd: 'clear_history',
             }))
+         }
+      )
+
+      document.getElementById("ibbq-download").addEventListener(
+         'click', function(event) {
+            probe_readings = new Map()
+            for (var i = 0; i < chart.options.data.length; i++) {
+               var dataSeries = chart.options.data[i];
+               for (var j = 0; j < dataSeries.dataPoints.length; j++) {
+                  var dataPoint = dataSeries.dataPoints[j]
+
+                  if (probe_readings.get(dataPoint.x) == undefined) {
+                     probe_readings.set(dataPoint.x, [])
+                  }
+                  probe_readings.get(dataPoint.x)[i] = dataPoint.tempC
+               }
+            }
+
+            data = {
+               'probe_readings': Array.from(probe_readings.keys()).reduce((result, ts) => {
+                  result.push({
+                     'ts': ts,
+                     'probes': probe_readings.get(ts)
+                  })
+                  return result
+                }, []),
+            }
+
+            blob = new Blob([JSON.stringify(data)], {type: 'application/json'}) // text/plain
+            this.href = window.URL.createObjectURL(blob)
+            this.download = 'ibbq_' + new Date().toJSON().slice(0, -5) + '.json'
+         }
+      )
+
+      document.getElementById("ibbq-upload").addEventListener(
+         'change', function(e) {
+            var reader = new FileReader()
+            reader.readAsText(e.target.files[0], 'UTF-8')
+            reader.onload = e2 => {
+               data = JSON.parse(e2.target.result);
+
+               // Disconnect from server
+               inOfflineMode = true
+               ws.close()
+
+               resetChartData()
+               for (var i = 0; i < data.probe_readings.length; i++) {
+                  appendChartData(data.probe_readings[i]);
+               }
+            }
+         }
+      )
+
+      document.getElementById('server-reconnect').addEventListener(
+         'click', function(event) {
+            inOfflineMode = false
+            connectWebsocket()
          }
       )
 

@@ -6,13 +6,11 @@ body {
   height: 100%;
 }
 
-#server-disconnected-banner {
-  background-color: red;
-  color: #fff;
+.banner {
   text-align: center;
   height: 0;
 }
-#server-disconnected-banner.show {
+.banner.show {
   height: auto;
 }
 
@@ -112,7 +110,7 @@ body {
 /*
  * Battery Indicator
  */
-.bi::before {
+#ibbq-battery::before {
   transform: rotate(270deg);
 }
 
