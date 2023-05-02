@@ -17,13 +17,13 @@
   </head>
   <body>
     <div class="container-fluid h-100 p-0 d-flex flex-column">
-      <div id="server-disconnected-banner" class="flex-shrink-0 d-none text-center bg-danger text-light p-1">
-        Reconnecting to Server...
-      </div>
-      <div id="offline-mode-banner" class="flex-shrink-0 d-none text-center bg-warning text-secondary">
-        <div class="p-1">
+      <div class="bg-dark text-center px-2 pt-1">
+        <div id="server-disconnected-banner" class="alert alert-danger m-0 mt-1 p-1 d-none">
+          Reconnecting to Server...
+        </div>
+        <div id="offline-mode-banner" class="alert alert-warning m-0 mt-1 p-1 d-none">
           Disconnected from server while viewing saved data.
-          <a id="server-reconnect" href="#" class="btn btn-sm btn-secondary py-0">Reconnect</a>
+          <a id="server-reconnect" href="#" class="btn btn-sm btn-warning py-0" style="margin-top: calc(var(--bs-btn-padding-y)*-1);">Reconnect</a>
         </div>
       </div>
       <nav class="navbar navbar-expand navbar-dark bg-dark pb-0 mb-2 flex-shrink-0">
