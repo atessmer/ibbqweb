@@ -17,10 +17,10 @@
   </head>
   <body>
     <div class="container-fluid h-100 p-0 d-flex flex-column">
-      <div id="server-disconnected-banner" class="flex-shrink-0 banner bg-danger text-light">
-        <div class="p-1">Reconnecting to Server...</div>
+      <div id="server-disconnected-banner" class="flex-shrink-0 d-none text-center bg-danger text-light p-1">
+        Reconnecting to Server...
       </div>
-      <div id="offline-mode-banner" class="flex-shrink-0 banner bg-warning text-secondary">
+      <div id="offline-mode-banner" class="flex-shrink-0 d-none text-center bg-warning text-secondary">
         <div class="p-1">
           Disconnected from server while viewing saved data.
           <a id="server-reconnect" href="#" class="btn btn-sm btn-secondary py-0">Reconnect</a>
@@ -177,6 +177,9 @@
           </div>
         </div>
       </div>
+    </div>
+    <div id="toast" class="toast position-absolute bottom-0 end-0 mb-3 me-3">
+      <div class="toast-body"></div>
     </div>
   </body>
   <template id="probe-container-template">

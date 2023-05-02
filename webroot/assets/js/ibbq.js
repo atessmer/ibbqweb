@@ -233,10 +233,10 @@ connectWebsocket = () => {
    ws = new WebSocket(protocol + window.location.host + "/ws")
 
    ws.onopen = (e) => {
-      if (serverDisconnectedBanner.classList.contains("show") || offlineModeBanner.classList.contains("show")) {
+      if (!serverDisconnectedBanner.classList.contains("d-none") || !offlineModeBanner.classList.contains("d-none")) {
          console.log("websocket opened")
-         serverDisconnectedBanner.classList.remove("show")
-         offlineModeBanner.classList.remove("show")
+         serverDisconnectedBanner.classList.add("d-none")
+         offlineModeBanner.classList.add("d-none")
          renderChart()
       }
    }
@@ -245,12 +245,12 @@ connectWebsocket = () => {
       ibbqConnection.classList.remove("connected")
       ibbqConnection.classList.remove("disconnected")
       if (inOfflineMode) {
-         serverDisconnectedBanner.classList.remove("show")
-         offlineModeBanner.classList.add("show")
-      } else if (!serverDisconnectedBanner.classList.contains("show")) {
+         serverDisconnectedBanner.classList.add("d-none")
+         offlineModeBanner.classList.remove("d-none")
+      } else if (serverDisconnectedBanner.classList.contains("d-none")) {
          console.warn("websocket closed: [" + e.code + "]")
-         serverDisconnectedBanner.classList.add("show")
-         offlineModeBanner.classList.remove("show")
+         serverDisconnectedBanner.classList.remove("d-none")
+         offlineModeBanner.classList.add("d-none")
          setTimeout(connectWebsocket, 1000)
          renderChart()
       }
@@ -416,7 +416,7 @@ document.onreadystatechange = () => {
          }))
       })
 
-      document.getElementById("ibbq-download").addEventListener('click', (e) => {
+      document.getElementById('ibbq-download').addEventListener('click', (e) => {
          probe_readings = new Map()
          for (let i = 0; i < chart.options.data.length; i++) {
             let dataSeries = chart.options.data[i];
@@ -445,11 +445,29 @@ document.onreadystatechange = () => {
          e.target.download = 'ibbq_' + new Date().toJSON().slice(0, -5) + '.json'
       })
 
-      document.getElementById("ibbq-upload").addEventListener('change', (e) => {
+      document.getElementById('ibbq-upload').addEventListener('change', (e) => {
          let reader = new FileReader()
          reader.readAsText(e.target.files[0], 'UTF-8')
          reader.onload = (_e) => {
-            data = JSON.parse(_e.target.result);
+            try {
+               data = JSON.parse(_e.target.result);
+
+               const isValidProbeReading = (r) => {
+                  return Number.isInteger(r.ts) && Array.isArray(r.probes) && r.probes.every((p) => p == null || Number.isInteger(p))
+               }
+
+               if (!data.probe_readings || !data.probe_readings.every(isValidProbeReading)) {
+                  throw new Error('Invalid data structure')
+               }
+            } catch (ex) {
+               console.log('Error parsing saved data file "' + e.target.files[0].name + '": ' + ex.message)
+
+               let toastEl = document.getElementById('toast')
+               toastEl.getElementsByClassName('toast-body')[0].textContent = "Invalid data file"
+               let toast = new bootstrap.Toast(toastEl);
+               toast.show()
+               return
+            }
 
             // Disconnect from server
             inOfflineMode = true

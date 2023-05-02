@@ -6,13 +6,6 @@ body {
   height: 100%;
 }
 
-.banner {
-  text-align: center;
-  height: 0;
-}
-.banner.show {
-  height: auto;
-}
 
 .tab-pane {
   height: 100%;
