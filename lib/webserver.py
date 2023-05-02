@@ -19,6 +19,7 @@ class WebServer:
 
         self._webapp = aiohttp.web.Application(middlewares=[
             WebServer.index_middleware,
+            WebServer.cache_control_middleware,
         ])
         self._webapp.add_routes([
             aiohttp.web.get('/ws', self._ws_handler_factory()),
@@ -40,6 +41,14 @@ class WebServer:
         if request.path == "/":
             return aiohttp.web.FileResponse(os.path.join(WEBROOT, "index.html"))
         return await handler(request)
+
+    @staticmethod
+    @aiohttp.web.middleware
+    async def cache_control_middleware(request, handler):
+        response = await handler(request)
+        if isinstance(getattr(handler, '__self__', None),  aiohttp.web.StaticResource):
+            response.headers.setdefault("Cache-Control", "max-age=0")
+        return response
 
     def start(self):
         ssl_ctx = None
