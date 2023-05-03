@@ -230,7 +230,12 @@ connectWebsocket = () => {
    }
 
    protocol = window.location.protocol == "https:" ? "wss://" : "ws://"
-   ws = new WebSocket(protocol + window.location.host + "/ws")
+   try {
+      ws = new WebSocket(protocol + window.location.host + "/ws")
+   } catch (e) {
+      setTimeout(connectWebsocket, 1000)
+      return
+   }
 
    ws.onopen = (e) => {
       if (!serverDisconnectedBanner.classList.contains("d-none") || !offlineModeBanner.classList.contains("d-none")) {
