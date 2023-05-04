@@ -230,12 +230,7 @@ connectWebsocket = () => {
    }
 
    protocol = window.location.protocol == "https:" ? "wss://" : "ws://"
-   try {
-      ws = new WebSocket(protocol + window.location.host + "/ws")
-   } catch (e) {
-      setTimeout(connectWebsocket, 1000)
-      return
-   }
+   ws = new WebSocket(protocol + window.location.host + "/ws")
 
    ws.onopen = (e) => {
       if (!serverDisconnectedBanner.classList.contains("d-none") || !offlineModeBanner.classList.contains("d-none")) {
@@ -252,13 +247,16 @@ connectWebsocket = () => {
       if (inOfflineMode) {
          serverDisconnectedBanner.classList.add("d-none")
          offlineModeBanner.classList.remove("d-none")
-      } else if (serverDisconnectedBanner.classList.contains("d-none")) {
+         return
+      }
+
+      if (serverDisconnectedBanner.classList.contains("d-none")) {
          console.warn("websocket closed: [" + e.code + "]")
          serverDisconnectedBanner.classList.remove("d-none")
          offlineModeBanner.classList.add("d-none")
-         setTimeout(connectWebsocket, 1000)
          renderChart()
       }
+      setTimeout(connectWebsocket, 1000)
    }
 
    ws.onmessage = (e) => {
