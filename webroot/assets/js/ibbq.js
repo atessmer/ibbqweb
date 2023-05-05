@@ -4,6 +4,7 @@ let offlineModeBanner;
 let ibbqConnection;
 let ibbqBattery;
 let ibbqUnitCelcius;
+let chartMinY;
 let chart;
 let tempAlertModal;
 
@@ -13,33 +14,33 @@ let inSilenceAlarmHandler = false;
 let chartRenderTimeoutId = -1;
 let chartRenderMs = Date.now()
 
-let alertAudio = new Audio('/assets/audio/AlertTone.mp3');
+const alertAudio = new Audio('/assets/audio/AlertTone.mp3');
 
 // Match .probe-container:nth-child(...) .probe-idx .dot
-let probeColors = [
+const probeColors = [
   "#357bcc",
   "#32a852",
   "#d4872a",
   "#bdb320",
 ]
-let STRIPLINE_TEMP_OPACITY = 0.5
-let STRIPLINE_RANGE_OPACITY = 0.15
+const STRIPLINE_TEMP_OPACITY = 0.5
+const STRIPLINE_RANGE_OPACITY = 0.15
 
-CtoF = (temp) => (temp * 9 / 5) + 32;
-FtoC = (temp) => (temp - 32) * 5 / 9;
+const CtoF = (temp) => (temp * 9 / 5) + 32;
+const FtoC = (temp) => (temp - 32) * 5 / 9;
 
-isUnitC = () => ibbqUnitCelcius.checked
-isUnitF = () => !isUnitC()
+const isUnitC = () => ibbqUnitCelcius.checked
+const isUnitF = () => !isUnitC()
 
-tempFromC = (temp) => temp != null && isUnitF() ? CtoF(temp) : temp
-tempToC = (temp) => temp != null && isUnitF() ? FtoC(temp) : temp
+const tempFromC = (temp) => temp != null && isUnitF() ? CtoF(temp) : temp
+const tempToC = (temp) => temp != null && isUnitF() ? FtoC(temp) : temp
 
 // TODO: support Celcius presets too
-updatePreset = () => {
-   let probeTempMin = document.getElementById('probe-temp-min')
-   let probeTempMax = document.getElementById('probe-temp-max')
+const updatePreset = () => {
+   const probeTempMin = document.getElementById('probe-temp-min')
+   const probeTempMax = document.getElementById('probe-temp-max')
 
-   let preset = document.querySelector('#probe-preset option:checked')
+   const preset = document.querySelector('#probe-preset option:checked')
    if (preset == null) {
       probeTempMin.disabled = true
       probeTempMin.value = null
@@ -60,10 +61,10 @@ updatePreset = () => {
    }
 }
 
-updateProbeTempTarget = (probeIdx) => {
-   let probeContainer = document.getElementById('probe-container-' + probeIdx)
-   let min = parseInt(probeContainer.getAttribute('data-ibbq-temp-min'))
-   let max = parseInt(probeContainer.getAttribute('data-ibbq-temp-max'))
+const updateProbeTempTarget = (probeIdx) => {
+   const probeContainer = document.getElementById('probe-container-' + probeIdx)
+   const min = parseInt(probeContainer.getAttribute('data-ibbq-temp-min'))
+   const max = parseInt(probeContainer.getAttribute('data-ibbq-temp-max'))
 
    /*
     * Update temp-target text on Probes tab
@@ -76,7 +77,7 @@ updateProbeTempTarget = (probeIdx) => {
    /*
     * Update stripline on chart
     */
-   let sl = chart.options.axisY.stripLines[probeIdx]
+   const sl = chart.options.axisY.stripLines[probeIdx]
    if (isNaN(max)) {
       delete sl.value
       delete sl.startValue
@@ -95,14 +96,14 @@ updateProbeTempTarget = (probeIdx) => {
    }
 }
 
-appendChartData = (probeReading) => {
+const appendChartData = (probeReading) => {
    // When the temp remains the same, we just need the first/last timestamps
    // of those values to draw a straight line.
    //
    // Because the tooltip is shared across all data sets, we need to add a
    // datapoint to all data sets any time one temp changes so the toolip
    // shows all temps
-   lastReadings = chart.options.data.map(d => d.dataPoints.slice(-2))
+   const lastReadings = chart.options.data.map(d => d.dataPoints.slice(-2))
    duplicateReading =
       lastReadings.length == probeReading.probes.length &&
       lastReadings.every(dp => dp.length == 2) &&
@@ -111,11 +112,11 @@ appendChartData = (probeReading) => {
       );
 
    for (let i = 0; i < probeReading.probes.length; i++) {
-      let tempC = probeReading.probes[i]
+      const tempC = probeReading.probes[i]
 
       let probecontainer = document.getElementById('probe-container-' + i)
       if (probecontainer == null) {
-         let template = document.getElementById('probe-container-template')
+         const template = document.getElementById('probe-container-template')
          probecontainer = template.content.firstElementChild.cloneNode(true)
 
          probecontainer.id = 'probe-container-' + i
@@ -128,7 +129,7 @@ appendChartData = (probeReading) => {
          tempC === null ? '--' : tempFromC(tempC) + "&deg;"
 
       if (chart.options.data.length < i + 1) {
-         let probeColor = i <= probeColors.length ? probeColors[i] : "#000"
+         const probeColor = i <= probeColors.length ? probeColors[i] : "#000"
          chart.options.data.push({
             type: "line",
             markerType: "none",
@@ -148,7 +149,7 @@ appendChartData = (probeReading) => {
             label: "Probe " + (i+1) + " Target",
             labelBackgroundColor: 'transparent',
             labelFormatter: (e) => {
-               let sl = e.stripLine
+               const sl = e.stripLine
                if (sl.startValue !== null && sl.endValue !== null) {
                   return sl.startValue + '° ~ ' + sl.endValue + '°'
                } else if (sl.value !== null) {
@@ -176,13 +177,13 @@ appendChartData = (probeReading) => {
 
    if (probeReading.ts >= chart.options.axisX.maximum) {
       // Increase by 25%
-      let min = chart.options.axisX.minimum
-      let max = chart.options.axisX.maximum
+      const min = chart.options.axisX.minimum
+      const max = chart.options.axisX.maximum
       chart.options.axisX.maximum = min + ((max-min) * 1.25)
    }
 }
 
-renderChart = (minRenderIntervalMs=50) => {
+const renderChart = (minRenderIntervalMs=50) => {
    if (document.visibilityState != "visible") {
       // No reason to re-render the graph if the browser/tab is hidden
       return
@@ -209,12 +210,12 @@ renderChart = (minRenderIntervalMs=50) => {
    chart.render()
 }
 
-resetChartData = () => {
+const resetChartData = () => {
    chart.options.data = []
    chart.options.axisY.stripLines = []
    let xMin = new Date().getTime()
    for (let i = 0; i < data.probe_readings.length; i++) {
-      let reading = data.probe_readings[i]
+      const reading = data.probe_readings[i]
       if (reading.probes.some(temp => temp != null)) {
          xMin = reading.ts
          break
@@ -224,12 +225,12 @@ resetChartData = () => {
    chart.options.axisX.maximum = xMin + (10 * 60 * 1000) // +10 min
 }
 
-connectWebsocket = () => {
+const connectWebsocket = () => {
    if (inOfflineMode) {
       return
    }
 
-   protocol = window.location.protocol == "https:" ? "wss://" : "ws://"
+   const protocol = window.location.protocol == "https:" ? "wss://" : "ws://"
    ws = new WebSocket(protocol + window.location.host + "/ws")
 
    ws.onopen = (e) => {
@@ -260,7 +261,7 @@ connectWebsocket = () => {
    }
 
    ws.onmessage = (e) => {
-      data = JSON.parse(e.data)
+      const data = JSON.parse(e.data)
 
       if (data.cmd == "state_update") {
          /*
@@ -315,8 +316,8 @@ connectWebsocket = () => {
             }
 
             for (let i = 0; i < data.probe_readings[0].probes.length; i++) {
-               let probeContainer = document.getElementById('probe-container-' + i)
-               let targetTemp = data.target_temps[i]
+               const probeContainer = document.getElementById('probe-container-' + i)
+               const targetTemp = data.target_temps[i]
 
                if (targetTemp !== undefined) {
                   if (targetTemp.preset == null) {
@@ -372,13 +373,13 @@ connectWebsocket = () => {
 
          // Update chart
          for (let i = 0; i < chart.options.data.length; i++) {
-            let dataSeries = chart.options.data[i];
+            const dataSeries = chart.options.data[i];
             for (let j = 0; j < dataSeries.dataPoints.length; j++) {
-               let dataPoint = dataSeries.dataPoints[j]
+               const dataPoint = dataSeries.dataPoints[j]
                dataPoint.y = tempFromC(dataPoint.tempC)
             }
          }
-         renderChart(minRenderIntervalMs=0)
+         renderChart(0)
       }
    }
 }
@@ -405,7 +406,7 @@ document.onreadystatechange = () => {
 
       chartMinY.addEventListener('change', (e) => {
          chart.options.axisY.minimum = parseInt(e.target.value)
-         renderChart(minRenderIntervalMs=0)
+         renderChart(0)
       })
 
       document.getElementById("ibbq-clear-history").addEventListener('click', (e) => {
@@ -420,11 +421,11 @@ document.onreadystatechange = () => {
       })
 
       document.getElementById('ibbq-download').addEventListener('click', (e) => {
-         probe_readings = new Map()
+         const probe_readings = new Map()
          for (let i = 0; i < chart.options.data.length; i++) {
-            let dataSeries = chart.options.data[i];
+            const dataSeries = chart.options.data[i];
             for (let j = 0; j < dataSeries.dataPoints.length; j++) {
-               let dataPoint = dataSeries.dataPoints[j]
+               const dataPoint = dataSeries.dataPoints[j]
 
                if (probe_readings.get(dataPoint.x) == undefined) {
                   probe_readings.set(dataPoint.x, [])
@@ -433,7 +434,7 @@ document.onreadystatechange = () => {
             }
          }
 
-         data = {
+         const data = {
             'probe_readings': Array.from(probe_readings.keys()).reduce((result, ts) => {
                result.push({
                   'ts': ts,
@@ -443,15 +444,16 @@ document.onreadystatechange = () => {
              }, []),
          }
 
-         blob = new Blob([JSON.stringify(data)], {type: 'application/json'}) // text/plain
+         const blob = new Blob([JSON.stringify(data)], {type: 'application/json'}) // text/plain
          e.target.href = window.URL.createObjectURL(blob)
          e.target.download = 'ibbq_' + new Date().toJSON().slice(0, -5) + '.json'
       })
 
       document.getElementById('ibbq-upload').addEventListener('change', (e) => {
-         let reader = new FileReader()
+         const reader = new FileReader()
          reader.readAsText(e.target.files[0], 'UTF-8')
          reader.onload = (_e) => {
+            let data
             try {
                data = JSON.parse(_e.target.result);
 
@@ -465,9 +467,9 @@ document.onreadystatechange = () => {
             } catch (ex) {
                console.log('Error parsing saved data file "' + e.target.files[0].name + '": ' + ex.message)
 
-               let toastEl = document.getElementById('toast')
+               const toastEl = document.getElementById('toast')
                toastEl.getElementsByClassName('toast-body')[0].textContent = "Invalid data file"
-               let toast = new bootstrap.Toast(toastEl);
+               const toast = new bootstrap.Toast(toastEl);
                toast.show()
                return
             }
@@ -493,11 +495,11 @@ document.onreadystatechange = () => {
          while (!probeContainer.classList.contains('probe-container')) {
             probeContainer = probeContainer.parentElement
          }
-         let probeIdx = probeContainer.getAttribute('data-ibbq-probe-idx')
+         const probeIdx = probeContainer.getAttribute('data-ibbq-probe-idx')
 
          document.getElementById('probe-settings-index').value = probeIdx
 
-         let preset = probeContainer.getAttribute('data-ibbq-preset') || '0'
+         const preset = probeContainer.getAttribute('data-ibbq-preset') || '0'
          document.getElementById('probe-preset').value = preset
 
          document.getElementById('probe-temp-min').value =
@@ -511,8 +513,8 @@ document.onreadystatechange = () => {
       document.getElementById('probe-preset').addEventListener('change', (e) => updatePreset())
 
       document.getElementById('probeSettingsClear').addEventListener('click', (e) => {
-         let probeIdx = document.getElementById('probe-settings-index').value
-         let probe = parseInt(probeIdx)
+         const probeIdx = document.getElementById('probe-settings-index').value
+         const probe = parseInt(probeIdx)
          if (isNaN(probe)) {
             return
          }
@@ -535,14 +537,14 @@ document.onreadystatechange = () => {
       })
 
       document.getElementById('probeSettingsSave').addEventListener('click', (e) => {
-         let probeIdx = document.getElementById('probe-settings-index').value
-         let probe = parseInt(probeIdx)
+         const probeIdx = document.getElementById('probe-settings-index').value
+         const probe = parseInt(probeIdx)
          if (isNaN(probe)) {
             return
          }
 
-         let presetInput = document.getElementById('probe-preset')
-         let preset = presetInput.value
+         const presetInput = document.getElementById('probe-preset')
+         const preset = presetInput.value
          if (preset == '_invalid_') {
             presetInput.classList.add('is-invalid')
             return
@@ -551,8 +553,8 @@ document.onreadystatechange = () => {
          }
 
          let valid = true
-         let minInput = document.getElementById('probe-temp-min')
-         let min = parseInt(minInput.value)
+         const minInput = document.getElementById('probe-temp-min')
+         const min = parseInt(minInput.value)
          if (!minInput.disabled && isNaN(min)) {
             minInput.classList.add('is-invalid')
             valid = false
@@ -560,8 +562,8 @@ document.onreadystatechange = () => {
             minInput.classList.remove('is-invalid')
          }
 
-         let maxInput = document.getElementById('probe-temp-max')
-         let max = parseInt(maxInput.value)
+         const maxInput = document.getElementById('probe-temp-max')
+         const max = parseInt(maxInput.value)
          if (isNaN(max) || (!isNaN(min) && min >= max)) {
             maxInput.classList.add('is-invalid')
             valid = false
@@ -588,7 +590,7 @@ document.onreadystatechange = () => {
          }
       })
 
-      let options = {
+      const options = {
          animationEnabled: true,
          legend: {
             cursor: "pointer",
@@ -597,13 +599,13 @@ document.onreadystatechange = () => {
             itemclick: (e) => {
                e.dataSeries.visible = e.dataSeries.visible !== undefined &&
                                       !e.dataSeries.visible
-               renderChart(minRenderIntervalMs=0)
+               renderChart(0)
             }
          },
          toolTip: {
             shared: true,
             contentFormatter: (e) => {
-               content =
+               let content =
                   '<div style="font-weight: bold; text-decoration: underline; margin-bottom: 5px;">' +
                      CanvasJS.formatDate(e.entries[0].dataPoint.x, "hh:mm:ss TT") +
                   '</div>';
@@ -647,13 +649,13 @@ document.onreadystatechange = () => {
 
       // Workaround graph not rendering correct size initially
       document.querySelector('button[aria-controls="graph"]').addEventListener(
-         'shown.bs.tab', (e) => renderChart(minRenderIntervalMs=0)
+         'shown.bs.tab', (e) => renderChart(0)
       );
 
       alertAudio.muted = true;
       alertAudio.play().catch(error => {
-         let modalEl = document.getElementById('audioNoticeModal');
-         let modal = new bootstrap.Modal(modalEl);
+         const modalEl = document.getElementById('audioNoticeModal');
+         const modal = new bootstrap.Modal(modalEl);
          modal.show();
          return new Promise((resolve, reject) => {
             modalEl.addEventListener('hide.bs.modal', event => {
@@ -675,7 +677,7 @@ document.onreadystatechange = () => {
                "check browser documentation for details:\n\n" + error);
       });
 
-      let tempAlertModalEl = document.getElementById('tempAlertModal');
+      const tempAlertModalEl = document.getElementById('tempAlertModal');
       tempAlertModal = new bootstrap.Modal(tempAlertModalEl);
       tempAlertModalEl.addEventListener('hide.bs.modal', event => {
          alertAudio.pause();
