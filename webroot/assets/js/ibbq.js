@@ -210,12 +210,12 @@ const renderChart = (minRenderIntervalMs=50) => {
    chart.render()
 }
 
-const resetChartData = () => {
+const resetChartData = (probe_readings) => {
    chart.options.data = []
    chart.options.axisY.stripLines = []
    let xMin = new Date().getTime()
-   for (let i = 0; i < data.probe_readings.length; i++) {
-      const reading = data.probe_readings[i]
+   for (let i = 0; i < probe_readings.length; i++) {
+      const reading = probe_readings[i]
       if (reading.probes.some(temp => temp != null)) {
          xMin = reading.ts
          break
@@ -307,7 +307,7 @@ const connectWebsocket = () => {
           * Update probe data (probe and chart tabs)
           */
          if (data.full_history) {
-            resetChartData()
+            resetChartData(data.probe_readings)
          }
 
          if (data.full_history || data.connected) {
@@ -478,7 +478,7 @@ document.onreadystatechange = () => {
             inOfflineMode = true
             ws.close()
 
-            resetChartData()
+            resetChartData(data.probe_readings)
             for (let i = 0; i < data.probe_readings.length; i++) {
                appendChartData(data.probe_readings[i]);
             }
