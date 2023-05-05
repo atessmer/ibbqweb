@@ -450,28 +450,15 @@ document.onreadystatechange = () => {
       })
 
       document.getElementById('ibbq-upload').addEventListener('change', (e) => {
-         const reader = new FileReader()
-         reader.readAsText(e.target.files[0], 'UTF-8')
-         reader.onload = (_e) => {
-            let data
-            try {
-               data = JSON.parse(_e.target.result);
+         new Blob(e.target.files).text().then((text) => {
+            const data = JSON.parse(text)
 
-               const isValidProbeReading = (r) => {
-                  return Number.isInteger(r.ts) && Array.isArray(r.probes) && r.probes.every((p) => p == null || Number.isInteger(p))
-               }
+            const isValidProbeReading = (r) => {
+               return Number.isInteger(r.ts) && Array.isArray(r.probes) && r.probes.every((p) => p == null || Number.isInteger(p))
+            }
 
-               if (!data.probe_readings || !data.probe_readings.every(isValidProbeReading)) {
-                  throw new Error('Invalid data structure')
-               }
-            } catch (ex) {
-               console.log('Error parsing saved data file "' + e.target.files[0].name + '": ' + ex.message)
-
-               const toastEl = document.getElementById('toast')
-               toastEl.getElementsByClassName('toast-body')[0].textContent = "Invalid data file"
-               const toast = new bootstrap.Toast(toastEl);
-               toast.show()
-               return
+            if (!data.probe_readings || !data.probe_readings.every(isValidProbeReading)) {
+               throw new Error('Invalid data structure')
             }
 
             // Disconnect from server
@@ -482,7 +469,14 @@ document.onreadystatechange = () => {
             for (let i = 0; i < data.probe_readings.length; i++) {
                appendChartData(data.probe_readings[i]);
             }
-         }
+         }).catch((ex) => {
+            console.log('Error parsing saved data file "' + e.target.files[0].name + '": ' + ex.message)
+
+            const toastEl = document.getElementById('toast')
+            toastEl.getElementsByClassName('toast-body')[0].textContent = "Invalid data file"
+            const toast = new bootstrap.Toast(toastEl);
+            toast.show()
+         })
       })
 
       document.getElementById('server-reconnect').addEventListener('click', (e) => {
