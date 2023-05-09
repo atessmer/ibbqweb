@@ -120,14 +120,6 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
     def battery_level(self):
         return self._cur_battery_level
 
-    @property
-    def rssi(self):
-        """The initial RSSI from scan/discover, this value is not updated
-           when connected."""
-        if self._device is None:
-            return None
-        return self._device.rssi
-
     def _notify_change(self):
         self._change_event.set()
         self._change_event.clear()
@@ -152,13 +144,10 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         if self._device is None:
             if address is None:
                 while self._device is None:
-                    devs = await bleak.BleakScanner.discover()
-                    for dev in devs:
-                        if dev.name == "iBBQ":
-                            log.debug("Found iBBQ: %s", dev.address)
-                            self._device = dev
-                            break
-                    await asyncio.sleep(1)
+                    self._device = await bleak.BleakScanner.find_device_by_name("iBBQ")
+                    if self._device is None:
+                        await asyncio.sleep(1)
+                log.info("Found iBBQ: %s", self._device.address)
             else:
                 self._device = await bleak.BleakScanner.find_device_by_address(address)
                 if self._device is None:
@@ -169,15 +158,14 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         self._client = bleak.BleakClient(self._device, disconnected_callback=self._cb_disconnect)
         try:
             await self._client.connect()
-        except (bleak.exc.BleakError, bleak.exc.BleakDBusError) as ex:
+        except bleak.exc.BleakError as ex:
             raise ConnectionError("Failure to connect to device") from ex
 
         await self._init_client()
 
     async def _init_client(self):
-        services = await self._client.get_services()
         log.debug("Discovered characteristics:")
-        for characteristic in services.characteristics.values():
+        for characteristic in self._client.services.characteristics.values():
             # Time portion of UUID is characteristic key
             log.debug(characteristic)
             char_uuid = UUID(characteristic.uuid)

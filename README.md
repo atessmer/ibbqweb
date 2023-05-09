@@ -9,7 +9,7 @@ An alternat client for Inkbird iBBQ bluetooth grill thermometers, providing a te
 Install the following python dependencies:
 ```
 sudo pip install aiohttp
-sudo pip install bleak
+sudo pip install "bleak>=0.20"
 ```
 
 ### System User/Group
