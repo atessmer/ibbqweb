@@ -2,37 +2,25 @@
 
 import argparse
 import asyncio
-import gzip
 import logging
 import logging.handlers
-import os
 import sys
 
 import lib.config
 from lib.ibbq import IBBQ
 from lib.webserver import WebServer
 
-LOG_FILE_MAX_BYTES = 1024 * 1024 * 2 # 2MB
-LOG_FILE_BACKUP_COUNT = 5
-
 log = logging.getLogger('ibbqweb')
 
-def init_logging(level, log_file=None):
+def init_logging(level, syslog=False):
     log.setLevel(level)
-    log_fmt = "%(asctime)s [%(levelname)8s] %(message)s"
-    if log_file is not None:
-        handler = logging.handlers.RotatingFileHandler(log_file, maxBytes=LOG_FILE_MAX_BYTES,
-                                                       backupCount=LOG_FILE_BACKUP_COUNT)
-
-        handler.rotation_filename = lambda x: "%s.gz" % x
-
-        def gzip_log_rotator(source, dest):
-            with open(source, 'rb') as f_in:
-                with gzip.open(dest, 'wb') as gz_out:
-                    gz_out.writelines(f_in)
-            os.remove(source)
-        handler.rotator = gzip_log_rotator
+    if syslog:
+        log_fmt = ": %(levelname)8s : %(message)s"
+        handler = logging.handlers.SysLogHandler(address='/dev/log',
+                                                 facility=logging.handlers.SysLogHandler.LOG_DAEMON)
+        handler.ident = log.name
     else:
+        log_fmt = "%(asctime)s [%(levelname)8s] %(message)s"
         handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(logging.Formatter(log_fmt))
     log.addHandler(handler)
@@ -75,8 +63,8 @@ async def main():
                         help="Use an alternate config file. Default: %s" %
                              lib.config.DEFAULT_FILE,
                         default=lib.config.DEFAULT_FILE)
-    parser.add_argument('-l', '--log-file', metavar="FILE", default=None,
-                        help="Log to a file. Default: <stdout>")
+    parser.add_argument('-l', '--syslog', action="store_true", default=False,
+                        help="Log to syslog instead of STDOUT")
     parser.add_argument('-v', '--verbose', action="count", default=0,
                         help="Enable verbose logging (can be passed multiple "
                              "times for even more verbose output)")
@@ -87,7 +75,7 @@ async def main():
         log_level = logging.DEBUG
     elif args.verbose == 1:
         log_level = logging.INFO
-    init_logging(log_level, args.log_file)
+    init_logging(log_level, args.syslog)
 
     cfg = lib.config.IbbqWebConfig(args.config)
     cfg.load()
