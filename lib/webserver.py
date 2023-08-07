@@ -21,6 +21,17 @@ class WebServer:
             WebServer.index_middleware,
             WebServer.cache_control_middleware,
         ])
+
+        self._webapp['ssl_ctx'] = None
+        if self._cfg.tls_cert and self._cfg.tls_key:
+            self._webapp['tls_cert'] = self._cfg.tls_cert
+            self._webapp['tls_key'] = self._cfg.tls_key
+            self._webapp['ssl_ctx'] = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_SERVER)
+            self._webapp['ssl_ctx'].load_cert_chain(self._cfg.tls_cert, self._cfg.tls_key)
+            self._webapp.cleanup_ctx.append(WebServer._background_tasks)
+        elif self._cfg.tls_cert or self._cfg.tls_key:
+            raise ValueError("Must specify both or neither TLS 'cert' and 'key'")
+
         self._webapp.add_routes([
             aiohttp.web.get('/ws', self._ws_handler_factory()),
             aiohttp.web.static('/', WEBROOT)
@@ -50,17 +61,26 @@ class WebServer:
             response.headers.setdefault("Cache-Control", "max-age=0")
         return response
 
-    def start(self):
-        ssl_ctx = None
-        if self._cfg.tls_cert and self._cfg.tls_key:
-            ssl_ctx = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_SERVER)
-            ssl_ctx.load_cert_chain(self._cfg.tls_cert, self._cfg.tls_key)
-        elif self._cfg.tls_cert or self._cfg.tls_key:
-            raise ValueError("Must specify both or neither TLS 'cert' and 'key'")
+    @staticmethod
+    async def _reload_certs(app):
+        try:
+            while True:
+                await asyncio.sleep(60 * 5)
+                app['ssl_ctx'].load_cert_chain(app['tls_cert'], app['tls_key'])
+        except asyncio.CancelledError:
+            pass
 
+    @staticmethod
+    async def _background_tasks(app):
+        app['reload_certs'] = asyncio.create_task(WebServer._reload_certs(app))
+        yield
+        app['reload_certs'].cancel()
+        await app['reload_certs']
+
+    def start(self):
         tcpsite = aiohttp.web.TCPSite(self._webapp_runner,
                                       port=self._cfg.http_port,
-                                      ssl_context=ssl_ctx)
+                                      ssl_context=self._webapp['ssl_ctx'])
         return tcpsite.start()
 
     async def _ws_handle_cmd(self, data):
