@@ -384,6 +384,20 @@ const connectWebsocket = () => {
    }
 }
 
+const requestWakeLock = async () => {
+   if (document.visibilityState != "visible") {
+      return;
+   }
+
+   try {
+      const wakeLock = await navigator.wakeLock.request("screen");
+   } catch (err) {
+      // the wake lock request fails - usually system related,
+      // such being low on battery
+      console.log(`${err.name}, ${err.message}`);
+   }
+};
+
 document.onreadystatechange = () => {
    if (document.readyState === "complete") {
       serverDisconnectedBanner = document.getElementById("server-disconnected-banner");
@@ -645,6 +659,12 @@ document.onreadystatechange = () => {
       document.querySelector('button[aria-controls="graph"]').addEventListener(
          'shown.bs.tab', (e) => renderChart(0)
       );
+
+      // Request the screen wake lock to prevent screen from sleeping when
+      // monitoring temps
+      requestWakeLock();
+      document.addEventListener("visibilitychange", requestWakeLock);
+
 
       alertAudio.muted = true;
       alertAudio.play().catch(error => {
