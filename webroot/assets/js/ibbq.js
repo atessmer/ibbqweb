@@ -434,6 +434,19 @@ document.onreadystatechange = () => {
          }))
       })
 
+      document.getElementById("ibbq-poweroff").addEventListener('click', (e) => {
+         if (ws.readyState != 1) {
+            // Not connected
+            return;
+         }
+
+         if (confirm("Power off the server?")) {
+            ws.send(JSON.stringify({
+               cmd: 'poweroff',
+            }))
+         }
+      })
+
       document.getElementById('ibbq-download').addEventListener('click', (e) => {
          const probe_readings = new Map()
          for (let i = 0; i < chart.options.data.length; i++) {

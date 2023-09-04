@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import json
 import logging
+import os
 import os.path
 import ssl
 
@@ -101,6 +102,13 @@ class WebServer:
 
             elif data["cmd"] == "clear_history":
                 self._ibbq.clear_history()
+
+            elif data["cmd"] == "poweroff":
+                if self._cfg.allow_poweroff:
+                    os.system('sudo poweroff')
+                else:
+                    log.warning('Attempted to power off the server when '
+                                '"allow_poweroff" is disabled.')
         except ConnectionError:
             # Send an error back to the client?
             pass

@@ -9,6 +9,7 @@ class IbbqWebConfig: # pylint: disable=too-many-instance-attributes
         self._tls_cert = None
         self._tls_key = None
         self._unit = 'F'
+        self._allow_poweroff = False
         self._loaded = False
 
 
@@ -21,6 +22,7 @@ class IbbqWebConfig: # pylint: disable=too-many-instance-attributes
         self._tls_cert = tls.get('cert', self._tls_cert)
         self._tls_key = tls.get('key', self._tls_key)
         self.unit = cfg.get('unit', self._unit)
+        self._allow_poweroff = cfg.get('allow_poweroff', self._allow_poweroff)
 
         self._loaded = True
         self.write()
@@ -38,6 +40,7 @@ class IbbqWebConfig: # pylint: disable=too-many-instance-attributes
                     'key': self.tls_key,
                 },
                 'unit': self.unit,
+                'allow_poweroff': self.allow_poweroff,
             }, f_obj, sort_keys=True, indent=4)
 
 
@@ -79,3 +82,8 @@ class IbbqWebConfig: # pylint: disable=too-many-instance-attributes
         if unit != self._unit:
             self._unit = unit
             self.write()
+
+
+    @property
+    def allow_poweroff(self):
+        return self._allow_poweroff
