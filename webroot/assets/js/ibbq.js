@@ -132,7 +132,7 @@ const appendChartData = (probeReading) => {
          const probeColor = i <= probeColors.length ? probeColors[i] : "#000"
          chart.options.data.push({
             type: "line",
-            markerType: "none",
+            markerSize: 0,
             name: "Probe " + (i+1),
             showInLegend: true,
             legendText: "N/A",
