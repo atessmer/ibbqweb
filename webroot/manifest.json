@@ -1,0 +1,53 @@
+{
+    "name": "iBBQ Web",
+    "short_name": "iBBQ",
+    "theme_color": "#212529",
+    "background_color": "#212529",
+    "display": "standalone",
+    "scope": "/",
+    "start_url": "https://ibbq.local.tessmer.me",
+    "description": "Web interface for iBBQ bluetooth thermometer",
+    "orientation": "any",
+    "icons": [
+        {
+            "src": "https://ibbq.local.tessmer.me/assets/images/icon/icon-32.png",
+            "sizes": "32x32"
+        },
+        {
+            "src": "https://ibbq.local.tessmer.me/assets/images/icon/icon-64.png",
+            "sizes": "64x64"
+        },
+        {
+            "src": "https://ibbq.local.tessmer.me/assets/images/icon/icon-128.png",
+            "sizes": "128x128"
+        },
+        {
+            "src": "https://ibbq.local.tessmer.me/assets/images/icon/icon-192.png",
+            "sizes": "192x192"
+        },
+        {
+            "src": "https://ibbq.local.tessmer.me/assets/images/icon/icon-256.png",
+            "sizes": "256x256"
+        },
+        {
+            "src": "https://ibbq.local.tessmer.me/assets/images/icon/icon-512.png",
+            "sizes": "512x512"
+        },
+        {
+            "src": "https://ibbq.local.tessmer.me/assets/images/icon/icon-1024.png",
+            "sizes": "1024x1024"
+        },
+        {
+            "src": "https://ibbq.local.tessmer.me/assets/images/icon/icon-maskable.svg",
+            "type": "image/svg+xml",
+            "sizes": "any",
+            "purpose": "maskable"
+        },
+        {
+            "src": "https://ibbq.local.tessmer.me/assets/images/icon/icon.svg",
+            "type": "image/svg+xml",
+            "sizes": "any",
+            "purpose": "any"
+        }
+    ]
+}

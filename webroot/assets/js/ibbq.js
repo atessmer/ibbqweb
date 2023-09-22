@@ -35,6 +35,35 @@ const isUnitF = () => !isUnitC()
 const tempFromC = (temp) => temp != null && isUnitF() ? CtoF(temp) : temp
 const tempToC = (temp) => temp != null && isUnitF() ? FtoC(temp) : temp
 
+/*
+ * Cookie handlers.
+ * source: https://www.quirksmode.org/js/cookies.html
+ */
+const createCookie = (name, value, days) => {
+	if (days) {
+		var date = new Date();
+		date.setTime(date.getTime()+(days*24*60*60*1000));
+		var expires = "; expires="+date.toGMTString();
+	}
+	else var expires = "";
+	document.cookie = name+"="+value+expires+"; path=/";
+}
+
+const readCookie = (name) => {
+	var nameEQ = name + "=";
+	var ca = document.cookie.split(';');
+	for(var i=0;i < ca.length;i++) {
+		var c = ca[i];
+		while (c.charAt(0)==' ') c = c.substring(1,c.length);
+		if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length,c.length);
+	}
+	return null;
+}
+
+const eraseCookie = (name) => {
+	createCookie(name,"",-1);
+}
+
 // TODO: support Celcius presets too
 const updatePreset = () => {
    const probeTempMin = document.getElementById('probe-temp-min')
@@ -398,7 +427,53 @@ const requestWakeLock = async () => {
    }
 };
 
-document.onreadystatechange = () => {
+const setPwaInstallHandlers = () => {
+   const INSTALL_BUTTON_ID = 'install-pwa';
+   const DECLINE_BUTTON_ID = 'decline-install-pwa';
+   const installPWABanner = document.getElementById("install-pwa-banner");
+   let installPWAPrompt;
+
+   if (readCookie('pwaDeclined') != null) {
+      // Cookies can only be valid for so long, so refresh the expiration
+      // date on each page load
+      createCookie('pwaDeclined', '1', 365);
+      return;
+   }
+
+   window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      installPWAPrompt = e;
+      installPWABanner.classList.remove("d-none");
+   });
+
+   const pwaInstallButtonHandler = (e) => {
+      installPWABanner.classList.add("d-none");
+      if (e.target.id == INSTALL_BUTTON_ID) {
+         installPWAPrompt.prompt();
+         installPWAPrompt.userChoice;
+      } else if (e.target.id == DECLINE_BUTTON_ID) {
+         createCookie('pwaDeclined', '1', 365);
+      }
+      installPWAPrompt = null;
+   };
+   document.getElementById(INSTALL_BUTTON_ID).addEventListener('click', pwaInstallButtonHandler);
+   document.getElementById(DECLINE_BUTTON_ID).addEventListener('click', pwaInstallButtonHandler);
+}
+
+const registerServiceWorker = async () => {
+   if ("serviceWorker" in navigator) {
+      const registration = await navigator.serviceWorker.register("service_worker.js", {
+         scope: "/",
+      }).then((registration) => {
+         console.log("Service worker registered");
+      }).catch((error) => {
+         console.error(`Registration failed with ${error}`);
+      });
+   }
+};
+registerServiceWorker();
+
+document.addEventListener('readystatechange', (e) => {
    if (document.readyState === "complete") {
       serverDisconnectedBanner = document.getElementById("server-disconnected-banner");
       offlineModeBanner = document.getElementById("offline-mode-banner");
@@ -406,6 +481,8 @@ document.onreadystatechange = () => {
       ibbqBattery = document.getElementById("ibbq-battery");
       ibbqUnitCelcius = document.getElementById("ibbq-unit-celcius");
       chartMinY = document.getElementById("chart-min-y")
+
+      setPwaInstallHandlers();
 
       ibbqUnitCelcius.addEventListener('click', (e) => {
          if (ws.readyState != 1) {
@@ -729,4 +806,4 @@ document.onreadystatechange = () => {
 
       connectWebsocket();
    }
-}
+});
