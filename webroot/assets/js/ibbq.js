@@ -1,7 +1,6 @@
 let ws;
 let serverDisconnectedToast = null;
 let offlineModeToast = null;
-let ibbqConnection;
 let ibbqBattery;
 let ibbqUnitCelcius;
 let chartMinY;
@@ -293,8 +292,7 @@ const connectWebsocket = () => {
    }
 
    ws.onclose = (e) => {
-      ibbqConnection.classList.remove("connected")
-      ibbqConnection.classList.remove("disconnected")
+      renderConnectionState(ConnectionState.UNKNOWN);
       if (inOfflineMode) {
          serverDisconnectedToast && serverDisconnectedToast.hide();
          serverDisconnectedToast = null;
@@ -319,13 +317,8 @@ const connectWebsocket = () => {
          /*
           * Update connection status
           */
-         if (data.connected) {
-            ibbqConnection.classList.add("connected")
-            ibbqConnection.classList.remove("disconnected")
-         } else {
-            ibbqConnection.classList.add("disconnected")
-            ibbqConnection.classList.remove("connected")
-         }
+         renderConnectionState(data.connected ?
+                                ConnectionState.CONNECTED: ConnectionState.DISCONNECTED);
 
          /*
           * Update battery status
@@ -526,6 +519,30 @@ const renderToastInvalidData = () => {
    return renderToast(html);
 }
 
+const ConnectionState = Object.freeze({
+   CONNECTED: Symbol('connected'),
+   DISCONNECTED: Symbol('disconnected'),
+   UNKNOWN: Symbol('unknown'),
+});
+
+const renderConnectionState = (state) => {
+   const el = document.getElementById('ibbq-connection');
+
+   el.classList.remove(
+      'bi-wifi',
+      'bi-wifi-off',
+      'bi-exclamation-triangle-fill',
+   );
+
+   if (state == ConnectionState.CONNECTED) {
+      el.classList.add('bi-wifi');
+   } else if (state == ConnectionState.DISCONNECTED) {
+      el.classList.add('bi-wifi-off');
+   } else {
+      el.classList.add('bi-exclamation-triangle-fill');
+   }
+};
+
 const initAudioAlert = () => {
    alertAudio.muted = true;
    alertAudio.play().catch(error => {
@@ -624,11 +641,11 @@ registerServiceWorker();
 
 document.addEventListener('readystatechange', (e) => {
    if (document.readyState === "complete") {
-      ibbqConnection = document.getElementById("ibbq-connection");
       ibbqBattery = document.getElementById("ibbq-battery");
       ibbqUnitCelcius = document.getElementById("ibbq-unit-celcius");
       chartMinY = document.getElementById("chart-min-y")
 
+      renderConnectionState(ConnectionState.UNKNOWN);
       setPwaInstallHandlers();
 
       ibbqUnitCelcius.addEventListener('click', (e) => {

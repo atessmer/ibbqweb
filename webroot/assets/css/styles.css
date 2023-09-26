@@ -18,30 +18,6 @@ body {
    display: inline-block;
 }
 
-#ibbq-connection .dot {
-  background-color: grey;  
-}
-#ibbq-connection #ibbq-connection-text::after {
-  content: "Unknown";
-  color: grey;
-}
-
-#ibbq-connection.connected .dot {
-  background-color: green;
-}
-#ibbq-connection.connected #ibbq-connection-text::after {
-  content: "Connected";
-  color: green;
-}
-
-#ibbq-connection.disconnected .dot {
-  background-color: red;
-}
-#ibbq-connection.disconnected #ibbq-connection-text::after {
-  content: "Disconnected";
-  color: red;
-}
-
 .probe-container>.row {
   background-color: #ddd;
 }
