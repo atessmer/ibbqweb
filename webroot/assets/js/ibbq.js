@@ -1,6 +1,6 @@
 let ws;
-let serverDisconnectedBanner;
-let offlineModeBanner;
+let serverDisconnectedToast = null;
+let offlineModeToast = null;
 let ibbqConnection;
 let ibbqBattery;
 let ibbqUnitCelcius;
@@ -263,10 +263,12 @@ const connectWebsocket = () => {
    ws = new WebSocket(protocol + window.location.host + "/ws")
 
    ws.onopen = (e) => {
-      if (!serverDisconnectedBanner.classList.contains("d-none") || !offlineModeBanner.classList.contains("d-none")) {
+      if (serverDisconnectedToast || offlineModeToast) {
          console.log("websocket opened")
-         serverDisconnectedBanner.classList.add("d-none")
-         offlineModeBanner.classList.add("d-none")
+         serverDisconnectedToast && serverDisconnectedToast.hide();
+         serverDisconnectedToast = null;
+         offlineModeToast && offlineModeToast.hide();
+         offlineModeToast = null;
          renderChart()
       }
    }
@@ -275,15 +277,17 @@ const connectWebsocket = () => {
       ibbqConnection.classList.remove("connected")
       ibbqConnection.classList.remove("disconnected")
       if (inOfflineMode) {
-         serverDisconnectedBanner.classList.add("d-none")
-         offlineModeBanner.classList.remove("d-none")
+         serverDisconnectedToast && serverDisconnectedToast.hide();
+         serverDisconnectedToast = null;
+         offlineModeToast = renderToastOfflineMode().toast;
          return
       }
 
-      if (serverDisconnectedBanner.classList.contains("d-none")) {
+      if (!serverDisconnectedToast) {
          console.warn("websocket closed: [" + e.code + "]")
-         serverDisconnectedBanner.classList.remove("d-none")
-         offlineModeBanner.classList.add("d-none")
+         offlineModeToast && offlineToast.hide();
+         offlineModeToast = null;
+         serverDisconnectedToast = renderToastServerDisconnected().toast;
          renderChart()
       }
       setTimeout(connectWebsocket, 1000)
@@ -427,6 +431,82 @@ const requestWakeLock = async () => {
    }
 };
 
+const renderToast = (html) => {
+   const template = document.createElement('template');
+   template.innerHTML = html
+
+   const toastEl = template.content.firstElementChild;
+   toastEl.addEventListener('hidden.bs.toast', (e) => {
+      e.target.remove();
+   });
+   document.getElementById('toast-container').append(template.content);
+
+   const toast = new bootstrap.Toast(toastEl);
+   toast.show();
+
+   return {
+      'toast': toast,
+      'element': toastEl,
+   };
+}
+
+const renderToastServerDisconnected = () => {
+   html = `
+      <div class="toast align-items-center" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="false">
+        <div class="toast-header">
+          <i class="bi bi-exclamation-circle-fill me-1 text-danger"></i>
+          <strong class="me-auto">Disconnected</strong>
+          <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+          Reconnecting to server...
+        </div>
+      </div>
+   `;
+
+   return renderToast(html);
+}
+
+const renderToastOfflineMode = () => {
+   html = `
+      <div class="toast align-items-center" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="false">
+        <div class="toast-header">
+          <i class="bi bi-info-circle-fill me-1 text-warning"></i>
+          <strong class="me-auto">Disconnected</strong>
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="toast" aria-label="Reconnect">Reconnect</button>
+          <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+          Currently viewing saved data.
+        </div>
+      </div>
+   `;
+
+   const obj = renderToast(html);
+   obj.element.querySelector('[aria-label="Reconnect"]').addEventListener('click', (e) => {
+      inOfflineMode = false;
+      connectWebsocket();
+   });
+
+   return obj;
+}
+
+const renderToastInvalidData = () => {
+   html = `
+      <div class="toast align-items-center" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+          <i class="bi bi-info-circle-fill me-1 text-warning"></i>
+          <strong class="me-auto">Error</strong>
+        </div>
+        <div class="toast-body">
+          Invalid data file.
+        </div>
+      </div>
+   `;
+
+   return renderToast(html);
+}
+
 const setPwaInstallHandlers = () => {
    const INSTALL_BUTTON_ID = 'install-pwa';
    const DECLINE_BUTTON_ID = 'decline-install-pwa';
@@ -475,8 +555,6 @@ registerServiceWorker();
 
 document.addEventListener('readystatechange', (e) => {
    if (document.readyState === "complete") {
-      serverDisconnectedBanner = document.getElementById("server-disconnected-banner");
-      offlineModeBanner = document.getElementById("offline-mode-banner");
       ibbqConnection = document.getElementById("ibbq-connection");
       ibbqBattery = document.getElementById("ibbq-battery");
       ibbqUnitCelcius = document.getElementById("ibbq-unit-celcius");
@@ -575,17 +653,8 @@ document.addEventListener('readystatechange', (e) => {
             }
          }).catch((ex) => {
             console.log('Error parsing saved data file "' + e.target.files[0].name + '": ' + ex.message)
-
-            const toastEl = document.getElementById('toast')
-            toastEl.getElementsByClassName('toast-body')[0].textContent = "Invalid data file"
-            const toast = new bootstrap.Toast(toastEl);
-            toast.show()
+            renderToastInvalidData();
          })
-      })
-
-      document.getElementById('server-reconnect').addEventListener('click', (e) => {
-         inOfflineMode = false
-         connectWebsocket()
       })
 
       document.getElementById('probeSettingsModal').addEventListener('show.bs.modal', (e) => {

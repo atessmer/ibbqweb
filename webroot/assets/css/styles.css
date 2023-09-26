@@ -129,3 +129,11 @@ body {
 .nav-tabs .nav-link:hover {
   border-color: transparent;
 }
+
+/*
+ * Toast messages
+ */
+.toast {
+  background-color: #f0f0f0;
+  --bs-toast-header-bg: none;
+}

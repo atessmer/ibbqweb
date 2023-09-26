@@ -21,13 +21,6 @@
   <body>
     <div class="container-fluid h-100 p-0 d-flex flex-column">
       <div class="bg-dark text-center px-2 pt-1">
-        <div id="server-disconnected-banner" class="alert alert-danger m-0 mt-1 p-1 d-none">
-          Reconnecting to Server...
-        </div>
-        <div id="offline-mode-banner" class="alert alert-warning m-0 mt-1 p-1 d-none">
-          Disconnected from server while viewing saved data.
-          <a id="server-reconnect" href="#" class="btn btn-sm btn-warning py-0" style="margin-top: calc(var(--bs-btn-padding-y)*-1);">Reconnect</a>
-        </div>
         <div id="install-pwa-banner" class="alert alert-light m-0 mt-1 p-1 d-none">
           This site can be installed as an app!
           <a id="install-pwa" href="#" class="btn btn-sm btn-outline-secondary py-0" style="margin-top: calc(var(--bs-btn-padding-y)*-1);">Install</a>
@@ -192,8 +185,7 @@
         </div>
       </div>
     </div>
-    <div id="toast" class="toast position-absolute bottom-0 end-0 mb-3 me-3">
-      <div class="toast-body"></div>
+    <div id="toast-container" class="position-absolute bottom-0 end-0 mb-3 me-3">
     </div>
   </body>
   <template id="probe-container-template">
