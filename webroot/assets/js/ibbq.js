@@ -526,6 +526,56 @@ const renderToastInvalidData = () => {
    return renderToast(html);
 }
 
+const initAudioAlert = () => {
+   alertAudio.muted = true;
+   alertAudio.play().catch(error => {
+      const template = document.createElement('template');
+      template.innerHTML = `
+         <div class="modal fade" id="audioNoticeModal" tabindex="-1" aria-hidden="true">
+           <div class="modal-dialog modal-dialog-centered">
+             <div class="modal-content">
+               <div class="modal-header">
+                 <h5 class="modal-title" id="audioNoticeModalLabel">Audio Notice</h5>
+                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+               </div>
+               <div class="modal-body">
+                 This page uses play audio notifications when a temperature probe target is set and exceeded.
+               </div>
+             </div>
+           </div>
+         </div>
+      `;
+
+      const modalEl = template.content.firstElementChild;
+      modalEl.addEventListener('hidden.bs.modal', (e) => {
+         e.target.remove();
+      });
+      document.body.append(modalEl);
+
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
+
+      return new Promise((resolve, reject) => {
+         modalEl.addEventListener('hide.bs.modal', event => {
+            alertAudio.muted = true;
+            alertAudio.play().then(() => {
+               resolve();
+            }).catch(error => {
+               reject(error);
+            })
+         });
+      })
+   }).then(() => {
+      alertAudio.pause();
+      alertAudio.currentTime = 0;
+      alertAudio.muted = false;
+      alertAudio.loop = true;
+   }).catch(error => {
+      alert("Audio notifications are blocked by your browser, please " +
+            "check browser documentation for details:\n\n" + error);
+   });
+}
+
 const setPwaInstallHandlers = () => {
    const INSTALL_BUTTON_ID = 'install-pwa';
    const DECLINE_BUTTON_ID = 'decline-install-pwa';
@@ -843,31 +893,7 @@ document.addEventListener('readystatechange', (e) => {
       requestWakeLock();
       document.addEventListener("visibilitychange", requestWakeLock);
 
-
-      alertAudio.muted = true;
-      alertAudio.play().catch(error => {
-         const modalEl = document.getElementById('audioNoticeModal');
-         const modal = new bootstrap.Modal(modalEl);
-         modal.show();
-         return new Promise((resolve, reject) => {
-            modalEl.addEventListener('hide.bs.modal', event => {
-               alertAudio.muted = true;
-               alertAudio.play().then(() => {
-                  resolve();
-               }).catch(error => {
-                  reject(error);
-               })
-            });
-         })
-      }).then(() => {
-         alertAudio.pause();
-         alertAudio.currentTime = 0;
-         alertAudio.muted = false;
-         alertAudio.loop = true;
-      }).catch(error => {
-         alert("Audio notifications are blocked by your browser, please " +
-               "check browser documentation for details:\n\n" + error);
-      });
+      initAudioAlert();
 
       const tempAlertModalEl = document.getElementById('tempAlertModal');
       tempAlertModal = new bootstrap.Modal(tempAlertModalEl);
