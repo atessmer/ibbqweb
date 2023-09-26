@@ -519,6 +519,27 @@ const renderToastInvalidData = () => {
    return renderToast(html);
 }
 
+const renderToastPWAInstall = () => {
+   html = `
+      <div class="toast align-items-center" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="false">
+        <div class="toast-header">
+          <i class="bi bi-gear-fill me-1"></i>
+          <strong class="me-auto">Install</strong>
+          <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body">
+          Install this website as an application for a better experience!
+          <div class="mt-2 pt-2 border-top text-end">
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-ibbq-action="decline" data-bs-dismiss="toast">Decline</button>
+            <button type="button" class="btn btn-secondary btn-sm" data-ibbq-action="install" data-bs-dismiss="toast">Install</button>
+          </div>
+        </div>
+      </div>
+   `;
+
+   return renderToast(html);
+}
+
 const ConnectionState = Object.freeze({
    CONNECTED: Symbol('connected'),
    DISCONNECTED: Symbol('disconnected'),
@@ -594,11 +615,6 @@ const initAudioAlert = () => {
 }
 
 const setPwaInstallHandlers = () => {
-   const INSTALL_BUTTON_ID = 'install-pwa';
-   const DECLINE_BUTTON_ID = 'decline-install-pwa';
-   const installPWABanner = document.getElementById("install-pwa-banner");
-   let installPWAPrompt;
-
    if (readCookie('pwaDeclined') != null) {
       // Cookies can only be valid for so long, so refresh the expiration
       // date on each page load
@@ -607,23 +623,23 @@ const setPwaInstallHandlers = () => {
    }
 
    window.addEventListener('beforeinstallprompt', (e) => {
+      let installPWAPrompt = e;
       e.preventDefault();
-      installPWAPrompt = e;
-      installPWABanner.classList.remove("d-none");
-   });
+      const obj = renderToastPWAInstall();
 
-   const pwaInstallButtonHandler = (e) => {
-      installPWABanner.classList.add("d-none");
-      if (e.target.id == INSTALL_BUTTON_ID) {
-         installPWAPrompt.prompt();
-         installPWAPrompt.userChoice;
-      } else if (e.target.id == DECLINE_BUTTON_ID) {
-         createCookie('pwaDeclined', '1', 365);
-      }
-      installPWAPrompt = null;
-   };
-   document.getElementById(INSTALL_BUTTON_ID).addEventListener('click', pwaInstallButtonHandler);
-   document.getElementById(DECLINE_BUTTON_ID).addEventListener('click', pwaInstallButtonHandler);
+      obj.element.querySelector('.toast-body').addEventListener('click', (e) => {
+         if (e.target.dataset.ibbqAction == "install") {
+            installPWAPrompt.prompt();
+            installPWAPrompt.userChoice;
+         } else if (e.target.dataset.ibbqAction == "decline") {
+            createCookie('pwaDeclined', '1', 365);
+         } else {
+            // Click somewhere in the body outside a button
+            return;
+         }
+         installPWAPrompt = null;
+      });
+   });
 }
 
 const registerServiceWorker = async () => {
