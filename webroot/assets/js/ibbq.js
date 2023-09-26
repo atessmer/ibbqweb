@@ -91,7 +91,7 @@ const updatePreset = () => {
 }
 
 const updateProbeTempTarget = (probeIdx) => {
-   const probeContainer = document.getElementById('probe-container-' + probeIdx)
+   const probeContainer = document.querySelector(`.probe-container[data-ibbq-probe-idx="${probeIdx}"]`)
    const min = parseInt(probeContainer.getAttribute('data-ibbq-temp-min'))
    const max = parseInt(probeContainer.getAttribute('data-ibbq-temp-max'))
 
@@ -143,14 +143,33 @@ const appendChartData = (probeReading) => {
    for (let i = 0; i < probeReading.probes.length; i++) {
       const tempC = probeReading.probes[i]
 
-      let probecontainer = document.getElementById('probe-container-' + i)
+      let probecontainer = document.querySelector(`.probe-container[data-ibbq-probe-idx="${i}"]`)
       if (probecontainer == null) {
-         const template = document.getElementById('probe-container-template')
-         probecontainer = template.content.firstElementChild.cloneNode(true)
+         const template = document.createElement('template');
+         template.innerHTML = `
+            <div class="col probe-container px-0 px-lg-3" data-ibbq-probe-idx="${i}">
+              <div class="row m-1 my-lg-3 p-1 rounded-3 text-dark">
+                <div class="col-2 pt-2 probe-idx">
+                  <span class="dot">${i+1}</span>
+                </div>
+                <div class="col-8 probe-temp">
+                  <div class="row row-cols-1 fs-3">
+                    <div class="col probe-temp-current">&nbsp;</div>
+                  </div>
+                  <div class="row row-cols-1">
+                    <div class="col probe-temp-target">&nbsp;</div>
+                  </div>
+                </div>
+                <div class="col-2 probe-settings">
+                  <a href="#" class="text-dark" data-bs-toggle="modal" data-bs-target="#probeSettingsModal">
+                    <i class="bi bi-gear-fill"></i>
+                  </a>
+                </div>
+              </div>
+            </div>
+         `;
 
-         probecontainer.id = 'probe-container-' + i
-         probecontainer.setAttribute('data-ibbq-probe-idx', i)
-         probecontainer.querySelector('.probe-idx .dot').textContent = (i + 1)
+         probecontainer = template.content.firstElementChild;
          document.getElementById('probe-list').append(probecontainer);
       }
 
@@ -349,7 +368,7 @@ const connectWebsocket = () => {
             }
 
             for (let i = 0; i < data.probe_readings[0].probes.length; i++) {
-               const probeContainer = document.getElementById('probe-container-' + i)
+               const probeContainer = document.querySelector(`.probe-container[data-ibbq-probe-idx="${i}"]`)
                const targetTemp = data.target_temps[i]
 
                if (targetTemp !== undefined) {
