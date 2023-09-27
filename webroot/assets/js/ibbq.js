@@ -87,16 +87,16 @@ const updatePreset = () => {
       probeTempMax.disabled = false
    } else {
       probeTempMin.disabled = true
-      probeTempMin.value = preset.getAttribute('data-ibbq-target-min')
+      probeTempMin.value = preset.dataset.ibbqTargetMin || null
       probeTempMax.disabled = true
-      probeTempMax.value = preset.getAttribute('data-ibbq-target-max')
+      probeTempMax.value = preset.dataset.ibbqTargetMax
    }
 }
 
 const updateProbeTempTarget = (probeIdx) => {
    const probeContainer = document.querySelector(`.probe-container[data-ibbq-probe-idx="${probeIdx}"]`)
-   const min = parseInt(probeContainer.getAttribute('data-ibbq-temp-min'))
-   const max = parseInt(probeContainer.getAttribute('data-ibbq-temp-max'))
+   const min = parseInt(probeContainer.dataset.ibbqTempMin)
+   const max = parseInt(probeContainer.dataset.ibbqTempMax)
 
    /*
     * Update temp-target text on Probes tab
@@ -817,17 +817,15 @@ document.addEventListener('readystatechange', (e) => {
          while (!probeContainer.classList.contains('probe-container')) {
             probeContainer = probeContainer.parentElement
          }
-         const probeIdx = probeContainer.getAttribute('data-ibbq-probe-idx')
+         const probeIdx = probeContainer.dataset.ibbqProbeIdx
 
          document.getElementById('probe-settings-index').value = probeIdx
 
-         const preset = probeContainer.getAttribute('data-ibbq-preset') || '0'
+         const preset = probeContainer.dataset.ibbqPreset || '0'
          document.getElementById('probe-preset').value = preset
 
-         document.getElementById('probe-temp-min').value =
-            probeContainer.getAttribute('data-ibbq-temp-min')
-         document.getElementById('probe-temp-max').value =
-            probeContainer.getAttribute('data-ibbq-temp-max')
+         document.getElementById('probe-temp-min').value = probeContainer.dataset.ibbqTempMin
+         document.getElementById('probe-temp-max').value = probeContainer.dataset.ibbqTempMax
 
          updatePreset()
       })
