@@ -1,7 +1,6 @@
 let ws;
 let serverDisconnectedToast = null;
 let offlineModeToast = null;
-let ibbqBattery;
 let ibbqUnitCelcius;
 let chartMinY;
 let chart;
@@ -323,30 +322,7 @@ const connectWebsocket = () => {
          /*
           * Update battery status
           */
-         ibbqBattery.classList.remove(
-            'bi-battery',
-            'bi-battery-charging',
-            'bi-battery-full',
-            'bi-battery-half',
-            'text-danger',
-            'text-warning',
-         )
-         if (data.battery_level == null) {
-            ibbqBattery.textContent = "--"
-            ibbqBattery.classList.add('bi-battery')
-         } else if (data.battery_level == 0xffff) {
-            ibbqBattery.textContent = "--"
-            ibbqBattery.classList.add('bi-battery-charging', 'text-warning')
-         } else {
-            ibbqBattery.textContent = data.battery_level + "%"
-            if (data.battery_level <= 10) {
-               ibbqBattery.classList.add('bi-battery', 'text-danger')
-            } else if (data.battery_level >= 90) {
-               ibbqBattery.classList.add('bi-battery-full')
-            } else {
-               ibbqBattery.classList.add('bi-battery-half')
-            }
-         }
+         renderBatteryLevel(data.battery_level);
 
          /*
           * Update probe data (probe and chart tabs)
@@ -540,6 +516,35 @@ const renderToastPWAInstall = () => {
    return renderToast(html);
 }
 
+const renderBatteryLevel = (level) => {
+   const el = document.getElementById('ibbq-battery');
+
+   el.classList.remove(
+      'bi-battery',
+      'bi-battery-charging',
+      'bi-battery-full',
+      'bi-battery-half',
+      'text-danger',
+      'text-warning',
+   )
+   if (level == null) {
+      el.textContent = "--"
+      el.classList.add('bi-battery')
+   } else if (level == 0xffff) {
+      el.textContent = "--"
+      el.classList.add('bi-battery-charging', 'text-warning')
+   } else {
+      el.textContent = level + "%"
+      if (level <= 10) {
+         el.classList.add('bi-battery', 'text-danger')
+      } else if (level >= 90) {
+         el.classList.add('bi-battery-full')
+      } else {
+         el.classList.add('bi-battery-half')
+      }
+   }
+}
+
 const ConnectionState = Object.freeze({
    CONNECTED: Symbol('connected'),
    DISCONNECTED: Symbol('disconnected'),
@@ -657,7 +662,6 @@ registerServiceWorker();
 
 document.addEventListener('readystatechange', (e) => {
    if (document.readyState === "complete") {
-      ibbqBattery = document.getElementById("ibbq-battery");
       ibbqUnitCelcius = document.getElementById("ibbq-unit-celcius");
       chartMinY = document.getElementById("chart-min-y")
 
