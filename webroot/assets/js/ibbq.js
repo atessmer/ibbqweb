@@ -1,8 +1,6 @@
 let ws;
 let serverDisconnectedToast = null;
 let offlineModeToast = null;
-let ibbqUnitCelcius;
-let chartMinY;
 let chart;
 let tempAlertModal;
 
@@ -27,8 +25,15 @@ const STRIPLINE_RANGE_OPACITY = 0.15
 const CtoF = (temp) => (temp * 9 / 5) + 32;
 const FtoC = (temp) => (temp - 32) * 5 / 9;
 
-const isUnitC = () => ibbqUnitCelcius.checked
+const isUnitC = () => document.getElementById('ibbq-unit-celcius').checked
 const isUnitF = () => !isUnitC()
+const setUnit = (celsius) => {
+   if (isUnitC() != celsius) {
+      const el = document.getElementById('ibbq-unit-celcius')
+      el.checked = celsius;
+      el.dispatchEvent(new Event('change'));
+   }
+}
 
 const tempFromC = (temp) => temp != null && isUnitF() ? CtoF(temp) : temp
 const tempToC = (temp) => temp != null && isUnitF() ? FtoC(temp) : temp
@@ -383,14 +388,7 @@ const connectWebsocket = () => {
             }
          }
       } else if (data.cmd == "unit_update") {
-         // Update checkbox
-         ibbqUnitCelcius.checked = (data.unit == "C");
-
-         // Update checkbox label
-         ibbqUnitCelcius.labels.forEach(label =>
-            label.textContent = ibbqUnitCelcius.checked ?
-               label.dataset.on : label.dataset.off
-         )
+         setUnit(data.unit == "C");
 
          // Update chart
          for (let i = 0; i < chart.options.data.length; i++) {
@@ -619,6 +617,126 @@ const initAudioAlert = () => {
    });
 }
 
+const initFormFields = () => {
+   /*
+    * Temperature Unit
+    */
+   const unitEl = document.getElementById("ibbq-unit-celcius");
+   unitEl.addEventListener('click', (e) => {
+      if (ws.readyState != 1) {
+         // Not connected
+         return
+      }
+      ws.send(JSON.stringify({
+         cmd: 'set_unit',
+         unit: isUnitC() ? 'C' : 'F',
+      }))
+   });
+   unitEl.addEventListener('change', (e) => {
+      const label = e.target.labels[0];
+      label.textContent = e.target.checked ? label.dataset.on : label.dataset.off;
+   });
+
+   /*
+    * Y-Axis Minimum
+    */
+   document.getElementById("chart-min-y").addEventListener('change', (e) => {
+      chart.options.axisY.minimum = parseInt(e.target.value);
+      renderChart(0);
+   });
+
+   /*
+    * Save Chart Data
+    */
+   document.getElementById('ibbq-download').addEventListener('click', (e) => {
+      const probe_readings = new Map()
+      for (let i = 0; i < chart.options.data.length; i++) {
+         const dataSeries = chart.options.data[i];
+         for (let j = 0; j < dataSeries.dataPoints.length; j++) {
+            const dataPoint = dataSeries.dataPoints[j]
+
+            if (probe_readings.get(dataPoint.x) == undefined) {
+               probe_readings.set(dataPoint.x, [])
+            }
+            probe_readings.get(dataPoint.x)[i] = dataPoint.tempC
+         }
+      }
+
+      const data = {
+         'probe_readings': Array.from(probe_readings.keys()).reduce((result, ts) => {
+            result.push({
+               'ts': ts,
+               'probes': probe_readings.get(ts)
+            })
+            return result
+          }, []),
+      }
+
+      const blob = new Blob([JSON.stringify(data)], {type: 'application/json'}) // text/plain
+      e.target.href = window.URL.createObjectURL(blob)
+      e.target.download = 'ibbq_' + new Date().toJSON().slice(0, -5) + '.json'
+   });
+
+   /*
+    * View Saved Data
+    */
+   document.getElementById('ibbq-upload').addEventListener('change', (e) => {
+      new Blob(e.target.files).text().then((text) => {
+         const data = JSON.parse(text)
+
+         const isValidProbeReading = (r) => {
+            return Number.isInteger(r.ts) && Array.isArray(r.probes) && r.probes.every((p) => p == null || Number.isInteger(p))
+         }
+
+         if (!data.probe_readings || !data.probe_readings.every(isValidProbeReading)) {
+            throw new Error('Invalid data structure')
+         }
+
+         // Disconnect from server
+         inOfflineMode = true
+         ws.close()
+
+         resetChartData(data.probe_readings)
+         for (let i = 0; i < data.probe_readings.length; i++) {
+            appendChartData(data.probe_readings[i]);
+         }
+      }).catch((ex) => {
+         console.log('Error parsing saved data file "' + e.target.files[0].name + '": ' + ex.message)
+         renderToastInvalidData();
+      })
+   });
+
+   /*
+    * Clear Data
+    */
+   document.getElementById("ibbq-clear-history").addEventListener('click', (e) => {
+      if (ws.readyState != 1) {
+         // Not connected
+         return;
+      }
+
+      ws.send(JSON.stringify({
+         cmd: 'clear_history',
+      }))
+   });
+
+   /*
+    * Server Power
+    */
+   document.getElementById("ibbq-poweroff").addEventListener('click', (e) => {
+      if (ws.readyState != 1) {
+         // Not connected
+         return;
+      }
+
+      if (confirm("Power off the server?")) {
+         ws.send(JSON.stringify({
+            cmd: 'poweroff',
+         }))
+      }
+   });
+}
+
 const setPwaInstallHandlers = () => {
    if (readCookie('pwaDeclined') != null) {
       // Cookies can only be valid for so long, so refresh the expiration
@@ -662,106 +780,9 @@ registerServiceWorker();
 
 document.addEventListener('readystatechange', (e) => {
    if (document.readyState === "complete") {
-      ibbqUnitCelcius = document.getElementById("ibbq-unit-celcius");
-      chartMinY = document.getElementById("chart-min-y")
-
       renderConnectionState(ConnectionState.UNKNOWN);
       setPwaInstallHandlers();
-
-      ibbqUnitCelcius.addEventListener('click', (e) => {
-         if (ws.readyState != 1) {
-            // Not connected
-            return
-         }
-         ws.send(JSON.stringify({
-            cmd: 'set_unit',
-            unit: isUnitC() ? 'C' : 'F',
-         }))
-      })
-
-      chartMinY.addEventListener('change', (e) => {
-         chart.options.axisY.minimum = parseInt(e.target.value)
-         renderChart(0)
-      })
-
-      document.getElementById("ibbq-clear-history").addEventListener('click', (e) => {
-         if (ws.readyState != 1) {
-            // Not connected
-            return;
-         }
-
-         ws.send(JSON.stringify({
-            cmd: 'clear_history',
-         }))
-      })
-
-      document.getElementById("ibbq-poweroff").addEventListener('click', (e) => {
-         if (ws.readyState != 1) {
-            // Not connected
-            return;
-         }
-
-         if (confirm("Power off the server?")) {
-            ws.send(JSON.stringify({
-               cmd: 'poweroff',
-            }))
-         }
-      })
-
-      document.getElementById('ibbq-download').addEventListener('click', (e) => {
-         const probe_readings = new Map()
-         for (let i = 0; i < chart.options.data.length; i++) {
-            const dataSeries = chart.options.data[i];
-            for (let j = 0; j < dataSeries.dataPoints.length; j++) {
-               const dataPoint = dataSeries.dataPoints[j]
-
-               if (probe_readings.get(dataPoint.x) == undefined) {
-                  probe_readings.set(dataPoint.x, [])
-               }
-               probe_readings.get(dataPoint.x)[i] = dataPoint.tempC
-            }
-         }
-
-         const data = {
-            'probe_readings': Array.from(probe_readings.keys()).reduce((result, ts) => {
-               result.push({
-                  'ts': ts,
-                  'probes': probe_readings.get(ts)
-               })
-               return result
-             }, []),
-         }
-
-         const blob = new Blob([JSON.stringify(data)], {type: 'application/json'}) // text/plain
-         e.target.href = window.URL.createObjectURL(blob)
-         e.target.download = 'ibbq_' + new Date().toJSON().slice(0, -5) + '.json'
-      })
-
-      document.getElementById('ibbq-upload').addEventListener('change', (e) => {
-         new Blob(e.target.files).text().then((text) => {
-            const data = JSON.parse(text)
-
-            const isValidProbeReading = (r) => {
-               return Number.isInteger(r.ts) && Array.isArray(r.probes) && r.probes.every((p) => p == null || Number.isInteger(p))
-            }
-
-            if (!data.probe_readings || !data.probe_readings.every(isValidProbeReading)) {
-               throw new Error('Invalid data structure')
-            }
-
-            // Disconnect from server
-            inOfflineMode = true
-            ws.close()
-
-            resetChartData(data.probe_readings)
-            for (let i = 0; i < data.probe_readings.length; i++) {
-               appendChartData(data.probe_readings[i]);
-            }
-         }).catch((ex) => {
-            console.log('Error parsing saved data file "' + e.target.files[0].name + '": ' + ex.message)
-            renderToastInvalidData();
-         })
-      })
+      initFormFields();
 
       document.getElementById('probeSettingsModal').addEventListener('show.bs.modal', (e) => {
          let probeContainer = e.relatedTarget
@@ -909,7 +930,7 @@ document.addEventListener('readystatechange', (e) => {
             labelFontSize: 20,
             logarithmic: false,
             logarithmBase: 10,
-            minimum: parseInt(chartMinY.value),
+            minimum: parseInt(document.getElementById('chart-min-y').value),
             stripLines: [],
          },
          data: [],
