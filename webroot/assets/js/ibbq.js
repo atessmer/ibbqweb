@@ -729,11 +729,39 @@ const initFormFields = () => {
          return;
       }
 
-      if (confirm("Power off the server?")) {
-         ws.send(JSON.stringify({
-            cmd: 'poweroff',
-         }))
-      }
+      const template = document.createElement('template');
+      template.innerHTML = `
+         <div class="modal fade" tabindex="-1" aria-hidden="true">
+           <div class="modal-dialog modal-dialog-centered">
+             <div class="modal-content">
+               <div class="modal-header">
+                 <h5 class="modal-title">Power off the server?</h5>
+               </div>
+               <div class="modal-body text-end">
+                 <button type="button" class="btn btn-secondary btn-sm" data-ibbq-action="cancel" data-bs-dismiss="modal">Cancel</button>
+                 <button type="button" class="btn btn-outline-danger btn-sm" data-ibbq-action="confirm" data-bs-dismiss="modal">Confirm</button>
+               </div>
+             </div>
+           </div>
+         </div>
+      `;
+
+      const modalEl = template.content.firstElementChild;
+      modalEl.addEventListener('hidden.bs.modal', (e) => {
+         e.target.remove();
+      });
+      document.body.append(modalEl);
+
+      modalEl.querySelector('.modal-body').addEventListener('click', (e) => {
+         if (e.target.dataset.ibbqAction == "confirm") {
+            ws.send(JSON.stringify({
+               cmd: 'poweroff',
+            }))
+         }
+      });
+
+      const modal = new bootstrap.Modal(modalEl);
+      modal.show();
    });
 }
 
