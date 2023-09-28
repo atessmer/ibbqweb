@@ -740,6 +740,72 @@ const initAudioAlert = () => {
    });
 }
 
+const initChart = () => {
+   const options = {
+      animationEnabled: true,
+      legend: {
+         cursor: "pointer",
+         verticalAlign: "top",
+         fontSize: 20,
+         itemclick: (e) => {
+            e.dataSeries.visible = e.dataSeries.visible !== undefined &&
+                                   !e.dataSeries.visible
+            renderChart(0)
+         }
+      },
+      toolTip: {
+         shared: true,
+         contentFormatter: (e) => {
+            let content = `
+               <div style="font-weight: bold; text-decoration: underline; margin-bottom: 5px;">
+                  ${CanvasJS.formatDate(e.entries[0].dataPoint.x, "hh:mm:ss TT")}
+               </div>
+            `;
+            for (const entry of e.entries) {
+               if (entry.dataPoint.y === undefined) {
+                  continue;
+               }
+               content += `
+                  <span style="font-weight: bold; color: ${entry.dataSeries.color};">
+                     ${entry.dataSeries.name}:
+                  </span>
+                  ${entry.dataPoint.y.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
+                  </br>
+               `;
+            }
+            return content;
+         },
+      },
+      zoomEnabled: true,
+      axisX: {
+         labelAngle: -25,
+         labelFontSize: 20,
+         labelFormatter: (e) => CanvasJS.formatDate(e.value, "hh:mm TT"),
+         minimum: new Date(),
+         maximum: new Date(new Date().getTime() + (10 * 60 * 1000)), // +10 min
+      },
+      axisY: {
+         includeZero: true,
+         labelFontSize: 20,
+         logarithmic: false,
+         logarithmBase: 10,
+         minimum: parseInt(document.getElementById('chart-min-y').value),
+         stripLines: [],
+      },
+      data: [],
+   };
+   chart = new CanvasJS.Chart("graph", options);
+
+   // Rendering is skipped when the page is not visible; make sure to render
+   // any incremental changes received when the page becomes visible again
+   document.addEventListener("visibilitychange", renderChart);
+
+   // Workaround graph not rendering correct size initially
+   document.querySelector('button[aria-controls="graph"]').addEventListener(
+      'shown.bs.tab', (e) => renderChart(0)
+   );
+}
+
 const initFormFields = () => {
    /*
     * Temperature Unit
@@ -935,76 +1001,14 @@ document.addEventListener('readystatechange', (e) => {
       setPwaInstallHandlers();
       initFormFields();
       initProbeSettingsModal();
-
-      const options = {
-         animationEnabled: true,
-         legend: {
-            cursor: "pointer",
-            verticalAlign: "top",
-            fontSize: 20,
-            itemclick: (e) => {
-               e.dataSeries.visible = e.dataSeries.visible !== undefined &&
-                                      !e.dataSeries.visible
-               renderChart(0)
-            }
-         },
-         toolTip: {
-            shared: true,
-            contentFormatter: (e) => {
-               let content =
-                  '<div style="font-weight: bold; text-decoration: underline; margin-bottom: 5px;">' +
-                     CanvasJS.formatDate(e.entries[0].dataPoint.x, "hh:mm:ss TT") +
-                  '</div>';
-               for (let entry of e.entries) {
-                  if (entry.dataPoint.y === undefined) {
-                     continue;
-                  }
-                  content +=
-                     '<span style="font-weight: bold; color: ' + entry.dataSeries.color + ';">' +
-                        entry.dataSeries.name + ': ' +
-                     '</span>' +
-                     entry.dataPoint.y.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",") +
-                     '</br>';
-               }
-               return content;
-            },
-         },
-         zoomEnabled: true,
-         axisX: {
-            labelAngle: -25,
-            labelFontSize: 20,
-            labelFormatter: (e) => CanvasJS.formatDate(e.value, "hh:mm TT"),
-            minimum: new Date(),
-            maximum: new Date(new Date().getTime() + (10 * 60 * 1000)), // +10 min
-         },
-         axisY: {
-            includeZero: true,
-            labelFontSize: 20,
-            logarithmic: false,
-            logarithmBase: 10,
-            minimum: parseInt(document.getElementById('chart-min-y').value),
-            stripLines: [],
-         },
-         data: [],
-      };
-      chart = new CanvasJS.Chart("graph", options);
-
-      // Rendering is skipped when the page is not visible; make sure to render
-      // any incremental changes received when the page becomes visible again
-      document.addEventListener("visibilitychange", renderChart);
-
-      // Workaround graph not rendering correct size initially
-      document.querySelector('button[aria-controls="graph"]').addEventListener(
-         'shown.bs.tab', (e) => renderChart(0)
-      );
+      initAudioAlert();
+      tempAlertModal = initTempAlertModal();
+      initChart();
 
       // Request the screen wake lock to prevent screen from sleeping when
       // monitoring temps
       requestWakeLock();
       document.addEventListener("visibilitychange", requestWakeLock);
-
-      initAudioAlert();
-      tempAlertModal = initTempAlertModal();
 
       connectWebsocket();
    }
