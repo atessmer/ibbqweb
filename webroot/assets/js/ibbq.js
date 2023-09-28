@@ -187,6 +187,35 @@ const initProbeSettingsModal = () => {
    }
 }
 
+const initTempAlertModal = () => {
+   const modalEl = document.getElementById('tempAlertModal');
+   modal = new bootstrap.Modal(modalEl);
+
+   modalEl.addEventListener('hide.bs.modal', event => {
+      alertAudio.pause();
+      alertAudio.currentTime = 0;
+
+      if (ws.readyState != 1) {
+         // Not connected
+         return;
+      }
+
+      if (inSilenceAlarmHandler) {
+         return;
+      }
+
+      ws.send(JSON.stringify({
+         cmd: 'silence_alarm',
+      }));
+   });
+
+   modalEl.addEventListener('show.bs.modal', event => {
+      alertAudio.play();
+   });
+
+   return modal;
+}
+
 const updateProbeTempTarget = (probeIdx) => {
    const probeContainer = document.querySelector(`.probe-container[data-ibbq-probe-idx="${probeIdx}"]`)
    const min = parseInt(probeContainer.dataset.ibbqTempMin)
@@ -975,29 +1004,7 @@ document.addEventListener('readystatechange', (e) => {
       document.addEventListener("visibilitychange", requestWakeLock);
 
       initAudioAlert();
-
-      const tempAlertModalEl = document.getElementById('tempAlertModal');
-      tempAlertModal = new bootstrap.Modal(tempAlertModalEl);
-      tempAlertModalEl.addEventListener('hide.bs.modal', event => {
-         alertAudio.pause();
-         alertAudio.currentTime = 0;
-
-         if (ws.readyState != 1) {
-            // Not connected
-            return;
-         }
-
-         if (inSilenceAlarmHandler) {
-            return;
-         }
-
-         ws.send(JSON.stringify({
-            cmd: 'silence_alarm',
-         }))
-      })
-      tempAlertModalEl.addEventListener('show.bs.modal', event => {
-         alertAudio.play();
-      })
+      tempAlertModal = initTempAlertModal();
 
       connectWebsocket();
    }
