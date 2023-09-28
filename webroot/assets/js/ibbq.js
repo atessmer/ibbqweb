@@ -251,6 +251,37 @@ const updateProbeTempTarget = (probeIdx) => {
    }
 }
 
+const renderProbe = (idx) => {
+   const template = document.createElement('template');
+   template.innerHTML = `
+      <div class="col probe-container px-0 px-lg-3" data-ibbq-probe-idx="${idx}">
+        <div class="row m-1 my-lg-3 p-1 rounded-3 text-dark">
+          <div class="col-2 pt-2 probe-idx">
+            <span class="dot">${idx+1}</span>
+          </div>
+          <div class="col-8 probe-temp">
+            <div class="row row-cols-1 fs-3">
+              <div class="col probe-temp-current">&nbsp;</div>
+            </div>
+            <div class="row row-cols-1">
+              <div class="col probe-temp-target">&nbsp;</div>
+            </div>
+          </div>
+          <div class="col-2 probe-settings">
+            <a href="#" class="text-dark" data-bs-toggle="modal" data-bs-target="#probeSettingsModal">
+              <i class="bi bi-gear-fill"></i>
+            </a>
+          </div>
+        </div>
+      </div>
+   `;
+
+   el = template.content.firstElementChild;
+   document.getElementById('probe-list').append(el);
+
+   return el;
+}
+
 const appendChartData = (probeReading) => {
    // When the temp remains the same, we just need the first/last timestamps
    // of those values to draw a straight line.
@@ -268,38 +299,10 @@ const appendChartData = (probeReading) => {
 
    for (let i = 0; i < probeReading.probes.length; i++) {
       const tempC = probeReading.probes[i]
+      const probeEl = document.querySelector(`.probe-container[data-ibbq-probe-idx="${i}"]`) ||
+                      renderProbe(i);
 
-      let probecontainer = document.querySelector(`.probe-container[data-ibbq-probe-idx="${i}"]`)
-      if (probecontainer == null) {
-         const template = document.createElement('template');
-         template.innerHTML = `
-            <div class="col probe-container px-0 px-lg-3" data-ibbq-probe-idx="${i}">
-              <div class="row m-1 my-lg-3 p-1 rounded-3 text-dark">
-                <div class="col-2 pt-2 probe-idx">
-                  <span class="dot">${i+1}</span>
-                </div>
-                <div class="col-8 probe-temp">
-                  <div class="row row-cols-1 fs-3">
-                    <div class="col probe-temp-current">&nbsp;</div>
-                  </div>
-                  <div class="row row-cols-1">
-                    <div class="col probe-temp-target">&nbsp;</div>
-                  </div>
-                </div>
-                <div class="col-2 probe-settings">
-                  <a href="#" class="text-dark" data-bs-toggle="modal" data-bs-target="#probeSettingsModal">
-                    <i class="bi bi-gear-fill"></i>
-                  </a>
-                </div>
-              </div>
-            </div>
-         `;
-
-         probecontainer = template.content.firstElementChild;
-         document.getElementById('probe-list').append(probecontainer);
-      }
-
-      probecontainer.getElementsByClassName('probe-temp-current')[0].innerHTML =
+      probeEl.getElementsByClassName('probe-temp-current')[0].innerHTML =
          tempC === null ? '--' : tempFromC(tempC) + "&deg;"
 
       if (chart.options.data.length < i + 1) {
