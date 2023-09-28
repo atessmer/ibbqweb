@@ -473,28 +473,26 @@ const connectWebsocket = () => {
 
                if (targetTemp !== undefined) {
                   if (targetTemp.preset == null) {
-                     probeContainer.removeAttribute('data-ibbq-preset')
+                     delete probeContainer.dataset.ibbqPreset;
                   } else {
-                     probeContainer.setAttribute('data-ibbq-preset', targetTemp.preset)
+                     probeContainer.dataset.ibbqPreset = targetTemp.preset;
                   }
 
                   if (targetTemp.min_temp == null) {
-                     probeContainer.removeAttribute('data-ibbq-temp-min')
+                     delete probeContainer.dataset.ibbqTempMin;
                   } else {
-                     probeContainer.setAttribute('data-ibbq-temp-min',
-                                                 tempFromC(targetTemp.min_temp))
+                     probeContainer.dataset.ibbqTempMin = tempFromC(targetTemp.min_temp);
                   }
 
                   if (targetTemp.max_temp == null) {
-                     probeContainer.removeAttribute('data-ibbq-temp-max')
+                     delete probeContainer.dataset.ibbqTempMax;
                   } else {
-                     probeContainer.setAttribute('data-ibbq-temp-max',
-                                                 tempFromC(targetTemp.max_temp))
+                     probeContainer.dataset.ibbqTempMax = tempFromC(targetTemp.max_temp);
                   }
                } else {
-                  probeContainer.removeAttribute('data-ibbq-preset')
-                  probeContainer.removeAttribute('data-ibbq-temp-min')
-                  probeContainer.removeAttribute('data-ibbq-temp-max')
+                  delete probeContainer.dataset.ibbqPreset;
+                  delete probeContainer.dataset.ibbqTempMin;
+                  delete probeContainer.dataset.ibbqTempMax;
                }
 
                updateProbeTempTarget(i)
