@@ -93,6 +93,100 @@ const updatePreset = () => {
    }
 }
 
+const initProbeSettingsModal = () => {
+   const modalEl = document.getElementById('probeSettingsModal');
+   const presetEl = document.getElementById('probe-preset');
+   const settingsIdxEl = document.getElementById('probe-settings-index');
+   const tempMinEl = document.getElementById('probe-temp-min');
+   const tempMaxEl = document.getElementById('probe-temp-max');
+
+   presetEl.addEventListener('change', (e) => {
+      updatePreset()
+   });
+
+   modalEl.addEventListener('show.bs.modal', (e) => {
+      const probeContainer = e.relatedTarget.closest('.probe-container');
+
+      settingsIdxEl.value = probeContainer.dataset.ibbqProbeIdx
+
+      const preset = probeContainer.dataset.ibbqPreset || '0'
+      presetEl.value = preset
+
+      tempMinEl.value = probeContainer.dataset.ibbqTempMin || ""
+      tempMaxEl.value = probeContainer.dataset.ibbqTempMax || ""
+
+      updatePreset()
+   })
+
+   for (const button of modalEl.getElementsByTagName('button')) {
+      button.addEventListener('click', (e) => {
+         if (ws.readyState != 1) {
+            // Not connected
+            return
+         }
+
+         const probe = parseInt(settingsIdxEl.value);
+         if (isNaN(probe)) {
+            return
+         }
+
+         if (e.target.dataset.ibbqAction == "clear") {
+            modalEl.querySelectorAll('.is-invalid').forEach((el) => {
+               el.classList.remove('is-invalid');
+            });
+
+            ws.send(JSON.stringify({
+               cmd: 'set_probe_target_temp',
+               probe: probe,
+               preset: null,
+               min_temp: null,
+               max_temp: null,
+            }));
+         } else if (e.target.dataset.ibbqAction == "save") {
+            const validateInt = (el) => {
+               if (!el.disabled && isNaN(parseInt(el.value))) {
+                  el.classList.add('is-invalid');
+                  return false;
+               }
+               el.classList.remove('is-invalid');
+               return true;
+            };
+
+            let valid = true;
+
+            const preset = presetEl.value;
+            if (preset == '') {
+               presetEl.classList.add('is-invalid');
+               valid = false;
+            } else {
+               presetEl.classList.remove('is-invalid');
+            }
+
+            const min = parseInt(tempMinEl.value);
+            valid = validateInt(tempMinEl) && valid; // 'valid' checked second to avoid short circuiting
+
+            const max = parseInt(tempMaxEl.value); // 'valid' checked second to avoid short circuiting
+            valid = validateInt(tempMaxEl) && valid;
+
+            if (!valid) {
+               return;
+            }
+
+            ws.send(JSON.stringify({
+               cmd: 'set_probe_target_temp',
+               probe: probe,
+               preset: preset,
+               min_temp: isNaN(min) ? null : tempToC(min),
+               max_temp: tempToC(max),
+            }));
+         } else {
+            return;
+         }
+         bootstrap.Modal.getInstance(modalEl).hide();
+      });
+   }
+}
+
 const updateProbeTempTarget = (probeIdx) => {
    const probeContainer = document.querySelector(`.probe-container[data-ibbq-probe-idx="${probeIdx}"]`)
    const min = parseInt(probeContainer.dataset.ibbqTempMin)
@@ -811,104 +905,7 @@ document.addEventListener('readystatechange', (e) => {
       renderConnectionState(ConnectionState.UNKNOWN);
       setPwaInstallHandlers();
       initFormFields();
-
-      document.getElementById('probeSettingsModal').addEventListener('show.bs.modal', (e) => {
-         let probeContainer = e.relatedTarget
-         while (!probeContainer.classList.contains('probe-container')) {
-            probeContainer = probeContainer.parentElement
-         }
-         const probeIdx = probeContainer.dataset.ibbqProbeIdx
-
-         document.getElementById('probe-settings-index').value = probeIdx
-
-         const preset = probeContainer.dataset.ibbqPreset || '0'
-         document.getElementById('probe-preset').value = preset
-
-         document.getElementById('probe-temp-min').value = probeContainer.dataset.ibbqTempMin
-         document.getElementById('probe-temp-max').value = probeContainer.dataset.ibbqTempMax
-
-         updatePreset()
-      })
-
-      document.getElementById('probe-preset').addEventListener('change', (e) => updatePreset())
-
-      document.getElementById('probeSettingsClear').addEventListener('click', (e) => {
-         const probeIdx = document.getElementById('probe-settings-index').value
-         const probe = parseInt(probeIdx)
-         if (isNaN(probe)) {
-            return
-         }
-
-         if (ws.readyState != 1) {
-            // Not connected
-            return
-         }
-         ws.send(JSON.stringify({
-            cmd: 'set_probe_target_temp',
-            probe: probe,
-            preset: null,
-            min_temp: null,
-            max_temp: null,
-         }))
-
-         bootstrap.Modal.getInstance(
-            document.getElementById('probeSettingsModal')
-         ).hide()
-      })
-
-      document.getElementById('probeSettingsSave').addEventListener('click', (e) => {
-         const probeIdx = document.getElementById('probe-settings-index').value
-         const probe = parseInt(probeIdx)
-         if (isNaN(probe)) {
-            return
-         }
-
-         const presetInput = document.getElementById('probe-preset')
-         const preset = presetInput.value
-         if (preset == '_invalid_') {
-            presetInput.classList.add('is-invalid')
-            return
-         } else {
-            presetInput.classList.remove('is-invalid')
-         }
-
-         let valid = true
-         const minInput = document.getElementById('probe-temp-min')
-         const min = parseInt(minInput.value)
-         if (!minInput.disabled && isNaN(min)) {
-            minInput.classList.add('is-invalid')
-            valid = false
-         } else {
-            minInput.classList.remove('is-invalid')
-         }
-
-         const maxInput = document.getElementById('probe-temp-max')
-         const max = parseInt(maxInput.value)
-         if (isNaN(max) || (!isNaN(min) && min >= max)) {
-            maxInput.classList.add('is-invalid')
-            valid = false
-         } else {
-            maxInput.classList.remove('is-invalid')
-         }
-
-         if (valid) {
-            if (ws.readyState != 1) {
-               // Not connected
-               return
-            }
-            ws.send(JSON.stringify({
-               cmd: 'set_probe_target_temp',
-               probe: probe,
-               preset: preset,
-               min_temp: isNaN(min) ? null : tempToC(min),
-               max_temp: tempToC(max),
-            }))
-
-            bootstrap.Modal.getInstance(
-               document.getElementById('probeSettingsModal')
-            ).hide()
-         }
-      })
+      initProbeSettingsModal();
 
       const options = {
          animationEnabled: true,

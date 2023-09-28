@@ -109,7 +109,7 @@
             <input id="probe-settings-index" type="hidden"/>
             <div class="form-floating mb-3">
               <select class="form-select" id="probe-preset">
-                <option value="_invalid_"></option>
+                <option value=""></option>
                 <option value="beef.rare" data-ibbq-target-max="125">Beef (Rare)</option>
                 <option value="beef.medrare" data-ibbq-target-max="135">Beef (Medium Rare)</option>
                 <option value="beef.medium" data-ibbq-target-max="145">Beef (Medium)</option>
@@ -141,8 +141,8 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button type="button" id="probeSettingsClear" class="btn btn-danger flex-grow-1">Clear</button>
-            <button type="button" id="probeSettingsSave" class="btn btn-secondary flex-grow-1">Save</button>
+            <button type="button" class="btn btn-danger flex-grow-1" data-ibbq-action="clear">Clear</button>
+            <button type="button" class="btn btn-secondary flex-grow-1" data-ibbq-action="save">Save</button>
           </div>
         </div>
       </div>
