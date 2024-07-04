@@ -297,8 +297,7 @@ const appendChartData = (probeReading) => {
          probeReading['probes'][i] == dp[1].tempC && dp[1].tempC == dp[0].tempC
       );
 
-   for (let i = 0; i < probeReading.probes.length; i++) {
-      const tempC = probeReading.probes[i]
+   for (const [i, tempC] of probeReading.probes.entries()) {
       const probeEl = document.querySelector(`.probe-container[data-ibbq-probe-idx="${i}"]`) ||
                       renderProbe(i);
 
@@ -391,8 +390,7 @@ const resetChartData = (probe_readings) => {
    chart.options.data = []
    chart.options.axisY.stripLines = []
    let xMin = new Date().getTime()
-   for (let i = 0; i < probe_readings.length; i++) {
-      const reading = probe_readings[i]
+   for (const reading of probe_readings) {
       if (reading.probes.some(temp => temp != null)) {
          xMin = reading.ts
          break
@@ -463,11 +461,11 @@ const connectWebsocket = () => {
          }
 
          if (data.full_history || data.connected) {
-            for (let i = 0; i < data.probe_readings.length; i++) {
-               appendChartData(data.probe_readings[i]);
+            for (const reading of data.probe_readings) {
+               appendChartData(reading);
             }
 
-            for (let i = 0; i < data.probe_readings[0].probes.length; i++) {
+            for (const i of data.probe_readings[0].probes.keys()) {
                const probeContainer = document.querySelector(`.probe-container[data-ibbq-probe-idx="${i}"]`)
                const targetTemp = data.target_temps[i]
 
@@ -515,10 +513,8 @@ const connectWebsocket = () => {
          setUnit(data.unit == "C");
 
          // Update chart
-         for (let i = 0; i < chart.options.data.length; i++) {
-            const dataSeries = chart.options.data[i];
-            for (let j = 0; j < dataSeries.dataPoints.length; j++) {
-               const dataPoint = dataSeries.dataPoints[j]
+         for (const dataSeries of chart.options.data) {
+            for (const dataPoint of dataSeries.dataPoints) {
                dataPoint.y = tempFromC(dataPoint.tempC)
             }
          }
@@ -840,11 +836,8 @@ const initFormFields = () => {
     */
    document.getElementById('ibbq-download').addEventListener('click', (e) => {
       const probe_readings = new Map()
-      for (let i = 0; i < chart.options.data.length; i++) {
-         const dataSeries = chart.options.data[i];
-         for (let j = 0; j < dataSeries.dataPoints.length; j++) {
-            const dataPoint = dataSeries.dataPoints[j]
-
+      for (const [i, dataSeries] of chart.options.data.entries()) {
+         for (const dataPoint of dataSeries.dataPoints) {
             if (probe_readings.get(dataPoint.x) == undefined) {
                probe_readings.set(dataPoint.x, [])
             }
@@ -887,8 +880,8 @@ const initFormFields = () => {
          ws.close()
 
          resetChartData(data.probe_readings)
-         for (let i = 0; i < data.probe_readings.length; i++) {
-            appendChartData(data.probe_readings[i]);
+         for (const reading of data.probe_readings) {
+            appendChartData(reading);
          }
       }).catch((ex) => {
          console.log('Error parsing saved data file "' + e.target.files[0].name + '": ' + ex.message)
