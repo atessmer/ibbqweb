@@ -41,12 +41,12 @@ async def device_manager(ibbq):
 
                 reading = ibbq.probe_reading
                 if reading is not None:
-                    log.info("Battery: %s%%", str(ibbq.battery_level))
+                    log.debug("Battery: %s%%", str(ibbq.battery_level))
                     temp_strs = [
                         "%s%s" % (temp, "" if temp is None else "C")
                         for temp in reading["probes"]
                     ]
-                    log.info("Probe temps: " + ', '.join(["%s" for _ in range(len(temp_strs))]),
+                    log.debug("Probe temps: " + ', '.join(["%s" for _ in range(len(temp_strs))]),
                               *temp_strs)
 
                 await asyncio.sleep(5)
