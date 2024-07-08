@@ -5,6 +5,7 @@ import logging
 import os
 import os.path
 import ssl
+import cryptography.x509
 
 import aiohttp.web
 
@@ -25,10 +26,14 @@ class WebServer:
 
         self._webapp['ssl_ctx'] = None
         if self._cfg.tls_cert and self._cfg.tls_key:
-            self._webapp['tls_cert'] = self._cfg.tls_cert
-            self._webapp['tls_key'] = self._cfg.tls_key
+            self._webapp['tls'] = {
+                'cert': self._cfg.tls_cert,
+                'key': self._cfg.tls_key,
+                'loaded_at': 0,
+                'not_valid_after': 0,
+            }
             self._webapp['ssl_ctx'] = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_SERVER)
-            self._webapp['ssl_ctx'].load_cert_chain(self._cfg.tls_cert, self._cfg.tls_key)
+            WebServer._reload_certs(self._webapp)
             self._webapp.cleanup_ctx.append(WebServer._background_tasks)
         elif self._cfg.tls_cert or self._cfg.tls_key:
             raise ValueError("Must specify both or neither TLS 'cert' and 'key'")
@@ -63,17 +68,30 @@ class WebServer:
         return response
 
     @staticmethod
-    async def _reload_certs(app):
+    def _reload_certs(app):
+        if os.lstat(app['tls']['cert']).st_mtime > app['tls']['loaded_at']:
+            app['ssl_ctx'].load_cert_chain(app['tls']['cert'], app['tls']['key'])
+
+            with open(app['tls']['cert'], 'rb') as _f:
+                cert_data = cryptography.x509.load_pem_x509_certificate(_f.read())
+            app['tls']['not_valid_after'] = cert_data.not_valid_after.timestamp()
+            app['tls']['loaded_at'] = datetime.datetime.now().timestamp()
+
+            log.info("Certificate chain (re)loaded, expires %s", cert_data.not_valid_after)
+
+    @staticmethod
+    async def _reload_certs_poller(app):
         try:
             while True:
-                await asyncio.sleep(60 * 5)
-                app['ssl_ctx'].load_cert_chain(app['tls_cert'], app['tls_key'])
+                expired = app['tls']['not_valid_after'] < datetime.datetime.now().timestamp()
+                await asyncio.sleep(5 if expired else 5 * 60)
+                WebServer._reload_certs(app)
         except asyncio.CancelledError:
             pass
 
     @staticmethod
     async def _background_tasks(app):
-        app['reload_certs'] = asyncio.create_task(WebServer._reload_certs(app))
+        app['reload_certs'] = asyncio.create_task(WebServer._reload_certs_poller(app))
         yield
         app['reload_certs'].cancel()
         await app['reload_certs']
