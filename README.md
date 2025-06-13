@@ -21,15 +21,26 @@ sudo usermod -a -G bluetooth ibbqweb
 sudo vim /etc/dbus-1/system.d/bluetooth.conf
 ```
 
-After creating the user, add permissions listed here for <policy group="bluetooth">: https://unix.stackexchange.com/questions/348441/how-to-allow-non-root-systemd-service-to-use-dbus-for-ble-operation
+After creating the user, add permissions listed [here](https://unix.stackexchange.com/questions/348441/how-to-allow-non-root-systemd-service-to-use-dbus-for-ble-operation) for \<policy group="bluetooth"\>:
+```
+  <policy group="bluetooth">
+    <allow own="org.bluez"/>
+    <allow send_destination="org.bluez"/>
+    <allow send_interface="org.bluez.GattCharacteristic1"/>
+    <allow send_interface="org.bluez.GattDescriptor1"/>
+    <allow send_interface="org.freedesktop.DBus.ObjectManager"/>
+    <allow send_interface="org.freedesktop.DBus.Properties"/>
+  </policy>
+```
 
 ### iptables
 
 Add iptables rules to NAT from port 80 to 8080, so ibbqweb can run on non-privileged port:
 ```
+sudo apt install iptables iptables-persistent
+
 sudo iptables -t nat -I OUTPUT -p tcp -d 127.0.0.1 --dport 80 -j REDIRECT --to-ports 8080
 sudo iptables -t nat -I PREROUTING -p tcp --dport 80 -j REDIRECT --to-ports 8080
-sudo apt install iptables-persistent
 sudo sh -c 'iptables-save > /etc/iptables/rules.v4'
 ```
 
