@@ -55,7 +55,7 @@ const createCookie = (name, value, days) => {
 const readCookie = (name) => {
    const cookies = document.cookie.split(";");
    for (const cookie of cookies) {
-      [cookie_name, cookie_value] = cookie.trim().split("=");
+      const [cookie_name, cookie_value] = cookie.trim().split("=");
       if (cookie_name == name) {
          return cookie_value;
       }
@@ -189,7 +189,7 @@ const initProbeSettingsModal = () => {
 
 const initTempAlertModal = () => {
    const modalEl = document.getElementById('tempAlertModal');
-   modal = new bootstrap.Modal(modalEl);
+   const modal = new bootstrap.Modal(modalEl);
 
    modalEl.addEventListener('hide.bs.modal', event => {
       alertAudio.pause();
@@ -276,7 +276,7 @@ const renderProbe = (idx) => {
       </div>
    `;
 
-   el = template.content.firstElementChild;
+   const el = template.content.firstElementChild;
    document.getElementById('probe-list').append(el);
 
    return el;
@@ -290,7 +290,7 @@ const appendChartData = (probeReading) => {
    // datapoint to all data sets any time one temp changes so the toolip
    // shows all temps
    const lastReadings = chart.options.data.map(d => d.dataPoints.slice(-2))
-   duplicateReading =
+   const duplicateReading =
       lastReadings.length == probeReading.probes.length &&
       lastReadings.every(dp => dp.length == 2) &&
       lastReadings.every((dp, i) =>
@@ -375,8 +375,8 @@ const renderChart = (minRenderIntervalMs=50) => {
    // awakens it might process 10s+ update messages from the websocket all
    // at once... wait for them all to be processed before rendering the final
    // result.
-   msSinceLastRender = Date.now() - chartRenderMs
-   chartRenderMs = Date.now()
+   const msSinceLastRender = Date.now() - chartRenderMs;
+   chartRenderMs = Date.now();
    if (msSinceLastRender < minRenderIntervalMs) {
       clearTimeout(chartRenderTimeoutId)
       chartRenderTimeoutId = setTimeout(renderChart, 50)
@@ -529,7 +529,7 @@ const requestWakeLock = async () => {
    }
 
    try {
-      const wakeLock = await navigator.wakeLock.request("screen");
+      await navigator.wakeLock.request("screen");
    } catch (err) {
       // the wake lock request fails - usually system related,
       // such being low on battery
@@ -557,7 +557,7 @@ const renderToast = (html) => {
 }
 
 const renderToastServerDisconnected = () => {
-   html = `
+   const html = `
       <div class="toast align-items-center" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="false">
         <div class="toast-header">
           <i class="bi bi-exclamation-circle-fill me-1 text-danger"></i>
@@ -574,7 +574,7 @@ const renderToastServerDisconnected = () => {
 }
 
 const renderToastOfflineMode = () => {
-   html = `
+   const html = `
       <div class="toast align-items-center" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="false">
         <div class="toast-header">
           <i class="bi bi-info-circle-fill me-1 text-warning"></i>
@@ -598,7 +598,7 @@ const renderToastOfflineMode = () => {
 }
 
 const renderToastInvalidData = () => {
-   html = `
+   const html = `
       <div class="toast align-items-center" role="alert" aria-live="assertive" aria-atomic="true">
         <div class="toast-header">
           <i class="bi bi-info-circle-fill me-1 text-warning"></i>
@@ -614,7 +614,7 @@ const renderToastInvalidData = () => {
 }
 
 const renderToastPWAInstall = () => {
-   html = `
+   const html = `
       <div class="toast align-items-center" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="false">
         <div class="toast-header">
           <i class="bi bi-gear-fill me-1"></i>
@@ -978,7 +978,7 @@ const setPwaInstallHandlers = () => {
 
 const registerServiceWorker = async () => {
    if ("serviceWorker" in navigator) {
-      const registration = await navigator.serviceWorker.register("service_worker.js", {
+      await navigator.serviceWorker.register("service_worker.js", {
          scope: "/",
       }).then((registration) => {
          console.log("Service worker registered");
