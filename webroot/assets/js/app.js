@@ -1,3 +1,5 @@
+import * as Cookie from './cookies.js';
+
 let ws;
 let serverDisconnectedToast = null;
 let offlineModeToast = null;
@@ -37,35 +39,6 @@ const setUnit = (celsius) => {
 
 const tempFromC = (temp) => temp != null && isUnitF() ? CtoF(temp) : temp
 const tempToC = (temp) => temp != null && isUnitF() ? FtoC(temp) : temp
-
-/*
- * Cookie handlers.
- * source: https://www.quirksmode.org/js/cookies.html
- */
-const createCookie = (name, value, days) => {
-   let expires = "";
-   if (days) {
-      const date = new Date();
-      date.setTime(date.getTime()+(days*24*60*60*1000));
-      expires = "; expires="+date.toGMTString();
-   }
-   document.cookie = name+"="+value+expires+"; path=/";
-}
-
-const readCookie = (name) => {
-   const cookies = document.cookie.split(";");
-   for (const cookie of cookies) {
-      const [cookie_name, cookie_value] = cookie.trim().split("=");
-      if (cookie_name == name) {
-         return cookie_value;
-      }
-   }
-   return null;
-}
-
-const eraseCookie = (name) => {
-   createCookie(name, "", -1);
-}
 
 // TODO: support Celcius presets too
 const updatePreset = () => {
@@ -949,10 +922,10 @@ const initFormFields = () => {
 }
 
 const setPwaInstallHandlers = () => {
-   if (readCookie('pwaDeclined') != null) {
+   if (Cookie.read('pwaDeclined') != null) {
       // Cookies can only be valid for so long, so refresh the expiration
       // date on each page load
-      createCookie('pwaDeclined', '1', 365);
+      Cookie.create('pwaDeclined', '1', 365);
       return;
    }
 
@@ -966,7 +939,7 @@ const setPwaInstallHandlers = () => {
             installPWAPrompt.prompt();
             installPWAPrompt.userChoice;
          } else if (e.target.dataset.ibbqAction == "decline") {
-            createCookie('pwaDeclined', '1', 365);
+            Cookie.create('pwaDeclined', '1', 365);
          } else {
             // Click somewhere in the body outside a button
             return;
