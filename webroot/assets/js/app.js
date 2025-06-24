@@ -1,4 +1,5 @@
-import * as Cookie from './cookies.js';
+import * as PWA from './pwa.js';
+import * as Utils from './utils.js';
 
 let ws;
 let serverDisconnectedToast = null;
@@ -510,25 +511,6 @@ const requestWakeLock = async () => {
    }
 };
 
-const renderToast = (html) => {
-   const template = document.createElement('template');
-   template.innerHTML = html
-
-   const toastEl = template.content.firstElementChild;
-   toastEl.addEventListener('hidden.bs.toast', (e) => {
-      e.target.remove();
-   });
-   document.getElementById('toast-container').append(template.content);
-
-   const toast = new bootstrap.Toast(toastEl);
-   toast.show();
-
-   return {
-      'toast': toast,
-      'element': toastEl,
-   };
-}
-
 const renderToastServerDisconnected = () => {
    const html = `
       <div class="toast align-items-center" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="false">
@@ -543,7 +525,7 @@ const renderToastServerDisconnected = () => {
       </div>
    `;
 
-   return renderToast(html);
+   return Utils.renderToast(html);
 }
 
 const renderToastOfflineMode = () => {
@@ -561,7 +543,7 @@ const renderToastOfflineMode = () => {
       </div>
    `;
 
-   const obj = renderToast(html);
+   const obj = Utils.renderToast(html);
    obj.element.querySelector('[aria-label="Reconnect"]').addEventListener('click', (e) => {
       inOfflineMode = false;
       connectWebsocket();
@@ -583,28 +565,7 @@ const renderToastInvalidData = () => {
       </div>
    `;
 
-   return renderToast(html);
-}
-
-const renderToastPWAInstall = () => {
-   const html = `
-      <div class="toast align-items-center" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="false">
-        <div class="toast-header">
-          <i class="bi bi-gear-fill me-1"></i>
-          <strong class="me-auto">Install</strong>
-          <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-        <div class="toast-body">
-          Install this website as an application for a better experience!
-          <div class="mt-2 pt-2 border-top text-end">
-            <button type="button" class="btn btn-outline-secondary btn-sm" data-ibbq-action="decline" data-bs-dismiss="toast">Decline</button>
-            <button type="button" class="btn btn-secondary btn-sm" data-ibbq-action="install" data-bs-dismiss="toast">Install</button>
-          </div>
-        </div>
-      </div>
-   `;
-
-   return renderToast(html);
+   return Utils.renderToast(html);
 }
 
 const renderBatteryLevel = (level) => {
@@ -921,34 +882,6 @@ const initFormFields = () => {
    });
 }
 
-const setPwaInstallHandlers = () => {
-   if (Cookie.read('pwaDeclined') != null) {
-      // Cookies can only be valid for so long, so refresh the expiration
-      // date on each page load
-      Cookie.create('pwaDeclined', '1', 365);
-      return;
-   }
-
-   window.addEventListener('beforeinstallprompt', (e) => {
-      let installPWAPrompt = e;
-      e.preventDefault();
-      const obj = renderToastPWAInstall();
-
-      obj.element.querySelector('.toast-body').addEventListener('click', (e) => {
-         if (e.target.dataset.ibbqAction == "install") {
-            installPWAPrompt.prompt();
-            installPWAPrompt.userChoice;
-         } else if (e.target.dataset.ibbqAction == "decline") {
-            Cookie.create('pwaDeclined', '1', 365);
-         } else {
-            // Click somewhere in the body outside a button
-            return;
-         }
-         installPWAPrompt = null;
-      });
-   });
-}
-
 const registerServiceWorker = async () => {
    if ("serviceWorker" in navigator) {
       await navigator.serviceWorker.register("service_worker.js", {
@@ -965,7 +898,7 @@ registerServiceWorker();
 document.addEventListener('readystatechange', (e) => {
    if (document.readyState === "complete") {
       renderConnectionState(ConnectionState.UNKNOWN);
-      setPwaInstallHandlers();
+      PWA.init();
       initFormFields();
       initProbeSettingsModal();
       initAudioAlert();
