@@ -1,13 +1,10 @@
 import * as PWA from './pwa.js';
 import * as Utils from './utils.js';
+import * as WS from './websocket.js';
 
-let ws;
-let serverDisconnectedToast = null;
-let offlineModeToast = null;
 let chart;
 let tempAlertModal;
 
-let inOfflineMode = false;
 let inSilenceAlarmHandler = false;
 
 let chartRenderTimeoutId = -1;
@@ -94,8 +91,7 @@ const initProbeSettingsModal = () => {
 
    for (const button of modalEl.getElementsByTagName('button')) {
       button.addEventListener('click', (e) => {
-         if (ws.readyState != 1) {
-            // Not connected
+         if (!WS.isConnected()) {
             return
          }
 
@@ -109,13 +105,7 @@ const initProbeSettingsModal = () => {
                el.classList.remove('is-invalid');
             });
 
-            ws.send(JSON.stringify({
-               cmd: 'set_probe_target_temp',
-               probe: probe,
-               preset: null,
-               min_temp: null,
-               max_temp: null,
-            }));
+            WS.clearProbeTargetTemp(probe);
          } else if (e.target.dataset.ibbqAction == "save") {
             const validateInt = (el) => {
                if (!el.disabled && isNaN(parseInt(el.value))) {
@@ -146,13 +136,7 @@ const initProbeSettingsModal = () => {
                return;
             }
 
-            ws.send(JSON.stringify({
-               cmd: 'set_probe_target_temp',
-               probe: probe,
-               preset: preset,
-               min_temp: isNaN(min) ? null : tempToC(min),
-               max_temp: tempToC(max),
-            }));
+            WS.setProbeTargetTemp(probe, preset, min, max);
          } else {
             return;
          }
@@ -169,18 +153,10 @@ const initTempAlertModal = () => {
       alertAudio.pause();
       alertAudio.currentTime = 0;
 
-      if (ws.readyState != 1) {
-         // Not connected
-         return;
-      }
-
       if (inSilenceAlarmHandler) {
          return;
       }
-
-      ws.send(JSON.stringify({
-         cmd: 'silence_alarm',
-      }));
+      WS.silenceAlarm();
    });
 
    modalEl.addEventListener('show.bs.modal', event => {
@@ -374,126 +350,98 @@ const resetChartData = (probe_readings) => {
    chart.options.axisX.maximum = xMin + (10 * 60 * 1000) // +10 min
 }
 
-const connectWebsocket = () => {
-   if (inOfflineMode) {
-      return
+const wsOnOpen = (e) => {
+   renderChart();
+};
+
+const wsOnClose = (e) => {
+   renderConnectionState(ConnectionState.UNKNOWN);
+   if (e.isDisconnect) {
+      renderChart(); // XXX: Why??
    }
+};
 
-   const protocol = window.location.protocol == "https:" ? "wss://" : "ws://"
-   ws = new WebSocket(protocol + window.location.host + "/ws")
+const wsOnMessage = (e) => {
+   const data = JSON.parse(e.data)
 
-   ws.onopen = (e) => {
-      if (serverDisconnectedToast || offlineModeToast) {
-         console.log("websocket opened")
-         serverDisconnectedToast && serverDisconnectedToast.hide();
-         serverDisconnectedToast = null;
-         offlineModeToast && offlineModeToast.hide();
-         offlineModeToast = null;
-         renderChart()
+   if (data.cmd == "state_update") {
+      /*
+       * Update connection status
+       */
+      renderConnectionState(data.connected ?
+                             ConnectionState.CONNECTED: ConnectionState.DISCONNECTED);
+
+      /*
+       * Update battery status
+       */
+      renderBatteryLevel(data.battery_level);
+
+      /*
+       * Update probe data (probe and chart tabs)
+       */
+      if (data.full_history) {
+         resetChartData(data.probe_readings)
       }
-   }
 
-   ws.onclose = (e) => {
-      renderConnectionState(ConnectionState.UNKNOWN);
-      if (inOfflineMode) {
-         serverDisconnectedToast && serverDisconnectedToast.hide();
-         serverDisconnectedToast = null;
-         offlineModeToast = renderToastOfflineMode().toast;
-         return
-      }
-
-      if (!serverDisconnectedToast) {
-         console.warn("websocket closed: [" + e.code + "]")
-         offlineModeToast && offlineToast.hide();
-         offlineModeToast = null;
-         serverDisconnectedToast = renderToastServerDisconnected().toast;
-         renderChart()
-      }
-      setTimeout(connectWebsocket, 1000)
-   }
-
-   ws.onmessage = (e) => {
-      const data = JSON.parse(e.data)
-
-      if (data.cmd == "state_update") {
-         /*
-          * Update connection status
-          */
-         renderConnectionState(data.connected ?
-                                ConnectionState.CONNECTED: ConnectionState.DISCONNECTED);
-
-         /*
-          * Update battery status
-          */
-         renderBatteryLevel(data.battery_level);
-
-         /*
-          * Update probe data (probe and chart tabs)
-          */
-         if (data.full_history) {
-            resetChartData(data.probe_readings)
+      if (data.full_history || data.connected) {
+         for (const reading of data.probe_readings) {
+            appendChartData(reading);
          }
 
-         if (data.full_history || data.connected) {
-            for (const reading of data.probe_readings) {
-               appendChartData(reading);
-            }
+         for (const i of data.probe_readings[0].probes.keys()) {
+            const probeContainer = document.querySelector(`.probe-container[data-ibbq-probe-idx="${i}"]`)
+            const targetTemp = data.target_temps[i]
 
-            for (const i of data.probe_readings[0].probes.keys()) {
-               const probeContainer = document.querySelector(`.probe-container[data-ibbq-probe-idx="${i}"]`)
-               const targetTemp = data.target_temps[i]
-
-               if (targetTemp !== undefined) {
-                  if (targetTemp.preset == null) {
-                     delete probeContainer.dataset.ibbqPreset;
-                  } else {
-                     probeContainer.dataset.ibbqPreset = targetTemp.preset;
-                  }
-
-                  if (targetTemp.min_temp == null) {
-                     delete probeContainer.dataset.ibbqTempMin;
-                  } else {
-                     probeContainer.dataset.ibbqTempMin = tempFromC(targetTemp.min_temp);
-                  }
-
-                  if (targetTemp.max_temp == null) {
-                     delete probeContainer.dataset.ibbqTempMax;
-                  } else {
-                     probeContainer.dataset.ibbqTempMax = tempFromC(targetTemp.max_temp);
-                  }
-               } else {
+            if (targetTemp !== undefined) {
+               if (targetTemp.preset == null) {
                   delete probeContainer.dataset.ibbqPreset;
-                  delete probeContainer.dataset.ibbqTempMin;
-                  delete probeContainer.dataset.ibbqTempMax;
+               } else {
+                  probeContainer.dataset.ibbqPreset = targetTemp.preset;
                }
 
-               updateProbeTempTarget(i)
-            }
+               if (targetTemp.min_temp == null) {
+                  delete probeContainer.dataset.ibbqTempMin;
+               } else {
+                  probeContainer.dataset.ibbqTempMin = tempFromC(targetTemp.min_temp);
+               }
 
-            renderChart()
-
-            /*
-             * Update target temp alert
-             */
-            if (data.target_temp_alert) {
-               tempAlertModal.show();
+               if (targetTemp.max_temp == null) {
+                  delete probeContainer.dataset.ibbqTempMax;
+               } else {
+                  probeContainer.dataset.ibbqTempMax = tempFromC(targetTemp.max_temp);
+               }
             } else {
-               inSilenceAlarmHandler = true;
-               tempAlertModal.hide();
-               inSilenceAlarmHandler = false;
+               delete probeContainer.dataset.ibbqPreset;
+               delete probeContainer.dataset.ibbqTempMin;
+               delete probeContainer.dataset.ibbqTempMax;
             }
-         }
-      } else if (data.cmd == "unit_update") {
-         setUnit(data.unit == "C");
 
-         // Update chart
-         for (const dataSeries of chart.options.data) {
-            for (const dataPoint of dataSeries.dataPoints) {
-               dataPoint.y = tempFromC(dataPoint.tempC)
-            }
+            updateProbeTempTarget(i)
          }
-         renderChart(0)
+
+         renderChart()
+
+         /*
+          * Update target temp alert
+          */
+         if (data.target_temp_alert) {
+            tempAlertModal.show();
+         } else {
+            inSilenceAlarmHandler = true;
+            tempAlertModal.hide();
+            inSilenceAlarmHandler = false;
+         }
       }
+   } else if (data.cmd == "unit_update") {
+      setUnit(data.unit == "C");
+
+      // Update chart
+      for (const dataSeries of chart.options.data) {
+         for (const dataPoint of dataSeries.dataPoints) {
+            dataPoint.y = tempFromC(dataPoint.tempC)
+         }
+      }
+      renderChart(0)
    }
 }
 
@@ -510,47 +458,6 @@ const requestWakeLock = async () => {
       console.log(`${err.name}, ${err.message}`);
    }
 };
-
-const renderToastServerDisconnected = () => {
-   const html = `
-      <div class="toast align-items-center" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="false">
-        <div class="toast-header">
-          <i class="bi bi-exclamation-circle-fill me-1 text-danger"></i>
-          <strong class="me-auto">Disconnected</strong>
-          <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-        <div class="toast-body">
-          Reconnecting to server...
-        </div>
-      </div>
-   `;
-
-   return Utils.renderToast(html);
-}
-
-const renderToastOfflineMode = () => {
-   const html = `
-      <div class="toast align-items-center" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="false">
-        <div class="toast-header">
-          <i class="bi bi-info-circle-fill me-1 text-warning"></i>
-          <strong class="me-auto">Disconnected</strong>
-          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="toast" aria-label="Reconnect">Reconnect</button>
-          <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-        <div class="toast-body">
-          Currently viewing saved data.
-        </div>
-      </div>
-   `;
-
-   const obj = Utils.renderToast(html);
-   obj.element.querySelector('[aria-label="Reconnect"]').addEventListener('click', (e) => {
-      inOfflineMode = false;
-      connectWebsocket();
-   });
-
-   return obj;
-}
 
 const renderToastInvalidData = () => {
    const html = `
@@ -743,14 +650,7 @@ const initFormFields = () => {
     */
    const unitEl = document.getElementById("ibbq-unit-celcius");
    unitEl.addEventListener('click', (e) => {
-      if (ws.readyState != 1) {
-         // Not connected
-         return
-      }
-      ws.send(JSON.stringify({
-         cmd: 'set_unit',
-         unit: isUnitC() ? 'C' : 'F',
-      }))
+      WS.setUnit(isUnitC());
    });
    unitEl.addEventListener('change', (e) => {
       const label = e.target.labels[0];
@@ -810,8 +710,7 @@ const initFormFields = () => {
          }
 
          // Disconnect from server
-         inOfflineMode = true
-         ws.close()
+         WS.disconnect();
 
          resetChartData(data.probe_readings)
          for (const reading of data.probe_readings) {
@@ -827,22 +726,14 @@ const initFormFields = () => {
     * Clear Data
     */
    document.getElementById("ibbq-clear-history").addEventListener('click', (e) => {
-      if (ws.readyState != 1) {
-         // Not connected
-         return;
-      }
-
-      ws.send(JSON.stringify({
-         cmd: 'clear_history',
-      }))
+      WS.clearHistory();
    });
 
    /*
     * Server Power
     */
    document.getElementById("ibbq-poweroff").addEventListener('click', (e) => {
-      if (ws.readyState != 1) {
-         // Not connected
+      if (!WS.isConnected()) {
          return;
       }
 
@@ -871,9 +762,7 @@ const initFormFields = () => {
 
       modalEl.querySelector('.modal-body').addEventListener('click', (e) => {
          if (e.target.dataset.ibbqAction == "confirm") {
-            ws.send(JSON.stringify({
-               cmd: 'poweroff',
-            }))
+            WS.powerOff();
          }
       });
 
@@ -910,6 +799,10 @@ document.addEventListener('readystatechange', (e) => {
       requestWakeLock();
       document.addEventListener("visibilitychange", requestWakeLock);
 
-      connectWebsocket();
+      WS.init({
+         onopen: wsOnOpen,
+         onclose: wsOnClose,
+         onmessage: wsOnMessage,
+      });
    }
 });
