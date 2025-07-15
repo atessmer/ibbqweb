@@ -1,6 +1,6 @@
 const renderToast = (html) => {
    const template = document.createElement('template');
-   template.innerHTML = html
+   template.innerHTML = html;
 
    const toastEl = template.content.firstElementChild;
    toastEl.addEventListener('hidden.bs.toast', (e) => {
@@ -17,6 +17,22 @@ const renderToast = (html) => {
    };
 }
 
+const renderModal = (html) => {
+   const template = document.createElement('template');
+   template.innerHTML = html;
+
+   const modalEl = template.content.firstElementChild;
+   document.body.append(modalEl);
+
+   const modal = new bootstrap.Modal(modalEl);
+
+   return {
+      'modal': modal,
+      'element': modalEl,
+   };
+}
+
 export {
    renderToast,
+   renderModal,
 };

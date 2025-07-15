@@ -1,16 +1,12 @@
+import * as Alert from './alert.js';
 import * as PWA from './pwa.js';
 import * as Utils from './utils.js';
 import * as WS from './websocket.js';
 
 let chart;
-let tempAlertModal;
-
-let inSilenceAlarmHandler = false;
 
 let chartRenderTimeoutId = -1;
 let chartRenderMs = Date.now()
-
-const alertAudio = new Audio('/assets/audio/AlertTone.mp3');
 
 // Match .probe-container:nth-child(...) .probe-idx .dot
 const probeColors = [
@@ -143,27 +139,6 @@ const initProbeSettingsModal = () => {
          bootstrap.Modal.getInstance(modalEl).hide();
       });
    }
-}
-
-const initTempAlertModal = () => {
-   const modalEl = document.getElementById('tempAlertModal');
-   const modal = new bootstrap.Modal(modalEl);
-
-   modalEl.addEventListener('hide.bs.modal', event => {
-      alertAudio.pause();
-      alertAudio.currentTime = 0;
-
-      if (inSilenceAlarmHandler) {
-         return;
-      }
-      WS.silenceAlarm();
-   });
-
-   modalEl.addEventListener('show.bs.modal', event => {
-      alertAudio.play();
-   });
-
-   return modal;
 }
 
 const updateProbeTempTarget = (probeIdx) => {
@@ -425,11 +400,9 @@ const wsOnMessage = (e) => {
           * Update target temp alert
           */
          if (data.target_temp_alert) {
-            tempAlertModal.show();
+            Alert.start();
          } else {
-            inSilenceAlarmHandler = true;
-            tempAlertModal.hide();
-            inSilenceAlarmHandler = false;
+            Alert.stop();
          }
       }
    } else if (data.cmd == "unit_update") {
@@ -527,56 +500,6 @@ const renderConnectionState = (state) => {
       el.classList.add('bi-exclamation-triangle-fill');
    }
 };
-
-const initAudioAlert = () => {
-   alertAudio.muted = true;
-   alertAudio.play().catch(error => {
-      const template = document.createElement('template');
-      template.innerHTML = `
-         <div class="modal fade" id="audioNoticeModal" tabindex="-1" aria-hidden="true">
-           <div class="modal-dialog modal-dialog-centered">
-             <div class="modal-content">
-               <div class="modal-header">
-                 <h5 class="modal-title" id="audioNoticeModalLabel">Audio Notice</h5>
-                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-               </div>
-               <div class="modal-body">
-                 This page uses play audio notifications when a temperature probe target is set and exceeded.
-               </div>
-             </div>
-           </div>
-         </div>
-      `;
-
-      const modalEl = template.content.firstElementChild;
-      modalEl.addEventListener('hidden.bs.modal', (e) => {
-         e.target.remove();
-      });
-      document.body.append(modalEl);
-
-      const modal = new bootstrap.Modal(modalEl);
-      modal.show();
-
-      return new Promise((resolve, reject) => {
-         modalEl.addEventListener('hide.bs.modal', event => {
-            alertAudio.muted = true;
-            alertAudio.play().then(() => {
-               resolve();
-            }).catch(error => {
-               reject(error);
-            })
-         });
-      })
-   }).then(() => {
-      alertAudio.pause();
-      alertAudio.currentTime = 0;
-      alertAudio.muted = false;
-      alertAudio.loop = true;
-   }).catch(error => {
-      alert("Audio notifications are blocked by your browser, please " +
-            "check browser documentation for details:\n\n" + error);
-   });
-}
 
 const initChart = () => {
    const options = {
@@ -790,8 +713,7 @@ document.addEventListener('readystatechange', (e) => {
       PWA.init();
       initFormFields();
       initProbeSettingsModal();
-      initAudioAlert();
-      tempAlertModal = initTempAlertModal();
+      Alert.init();
       initChart();
 
       // Request the screen wake lock to prevent screen from sleeping when
