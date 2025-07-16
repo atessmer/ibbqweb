@@ -34,6 +34,9 @@ const initPlayback = () => {
 
       return new Promise((resolve, reject) => {
          obj.element.addEventListener('hide.bs.modal', (e) => {
+            // Avoid warning about aria-hidden when the element retains focus
+            document.activeElement.blur();
+
             alertAudio.muted = true;
             alertAudio.play().then(() => {
                resolve();
