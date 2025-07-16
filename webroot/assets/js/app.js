@@ -1,4 +1,5 @@
 import * as Alert from './alert.js';
+import CanvasJS from 'canvasjs';
 import * as PWA from './pwa.js';
 import * as Utils from './utils.js';
 import * as WS from './websocket.js';
