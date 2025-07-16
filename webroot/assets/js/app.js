@@ -1,4 +1,5 @@
 import * as Alert from './alert.js';
+import * as Bootstrap from 'bootstrap';
 import * as PWA from './pwa.js';
 import * as Utils from './utils.js';
 import * as WS from './websocket.js';
@@ -136,7 +137,7 @@ const initProbeSettingsModal = () => {
          } else {
             return;
          }
-         bootstrap.Modal.getInstance(modalEl).hide();
+         Bootstrap.Modal.getInstance(modalEl).hide();
       });
    }
 }
@@ -689,7 +690,7 @@ const initFormFields = () => {
          }
       });
 
-      const modal = new bootstrap.Modal(modalEl);
+      const modal = new Bootstrap.Modal(modalEl);
       modal.show();
    });
 }

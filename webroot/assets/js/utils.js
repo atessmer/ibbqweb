@@ -1,3 +1,5 @@
+import * as Bootstrap from 'bootstrap';
+
 const renderToast = (html) => {
    const template = document.createElement('template');
    template.innerHTML = html;
@@ -8,7 +10,7 @@ const renderToast = (html) => {
    });
    document.getElementById('toast-container').append(template.content);
 
-   const toast = new bootstrap.Toast(toastEl);
+   const toast = new Bootstrap.Toast(toastEl);
    toast.show();
 
    return {
@@ -24,7 +26,7 @@ const renderModal = (html) => {
    const modalEl = template.content.firstElementChild;
    document.body.append(modalEl);
 
-   const modal = new bootstrap.Modal(modalEl);
+   const modal = new Bootstrap.Modal(modalEl);
 
    return {
       'modal': modal,
