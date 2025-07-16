@@ -661,8 +661,7 @@ const initFormFields = () => {
          return;
       }
 
-      const template = document.createElement('template');
-      template.innerHTML = `
+      const html = `
          <div class="modal fade" tabindex="-1" aria-hidden="true">
            <div class="modal-dialog modal-dialog-centered">
              <div class="modal-content">
@@ -677,21 +676,23 @@ const initFormFields = () => {
            </div>
          </div>
       `;
+      const obj = Utils.renderModal(html);
 
-      const modalEl = template.content.firstElementChild;
-      modalEl.addEventListener('hidden.bs.modal', (e) => {
+      obj.element.addEventListener('hide.bs.modal', (e) => {
+         // Avoid warning about aria-hidden when the element retains focus
+         document.activeElement.blur();
+      });
+
+      obj.element.addEventListener('hidden.bs.modal', (e) => {
          e.target.remove();
       });
-      document.body.append(modalEl);
 
-      modalEl.querySelector('.modal-body').addEventListener('click', (e) => {
-         if (e.target.dataset.ibbqAction == "confirm") {
-            WS.powerOff();
-         }
+      const confirmBtn = obj.element.querySelector('.modal-body button[data-ibbq-action="confirm"]');
+      confirmBtn.addEventListener('click', (e) => {
+         WS.powerOff();
       });
 
-      const modal = new Bootstrap.Modal(modalEl);
-      modal.show();
+      obj.modal.show();
    });
 }
 
