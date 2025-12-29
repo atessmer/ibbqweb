@@ -14,6 +14,11 @@ log = logging.getLogger('ibbqweb')
 
 WEBROOT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../webroot")
 
+
+def now_utc():
+    return datetime.datetime.now(datetime.timezone.utc).timestamp()
+
+
 class WebServer:
     def __init__(self, cfg, ibbq):
         self._cfg = cfg
@@ -74,16 +79,16 @@ class WebServer:
 
             with open(app['tls']['cert'], 'rb') as _f:
                 cert_data = cryptography.x509.load_pem_x509_certificate(_f.read())
-            app['tls']['not_valid_after'] = cert_data.not_valid_after.timestamp()
-            app['tls']['loaded_at'] = datetime.datetime.now().timestamp()
+            app['tls']['not_valid_after'] = cert_data.not_valid_after_utc.timestamp()
+            app['tls']['loaded_at'] = now_utc()
 
-            log.info("Certificate chain (re)loaded, expires %s", cert_data.not_valid_after)
+            log.info("Certificate chain (re)loaded, expires %s", cert_data.not_valid_after_utc)
 
     @staticmethod
     async def _reload_certs_poller(app):
         try:
             while True:
-                expired = app['tls']['not_valid_after'] < datetime.datetime.now().timestamp()
+                expired = app['tls']['not_valid_after'] < now_utc()
                 await asyncio.sleep(5 if expired else 5 * 60)
                 WebServer._reload_certs(app)
         except asyncio.CancelledError:
@@ -180,7 +185,7 @@ class WebServer:
                 if reading is None:
                     payload.update({
                         "probe_readings": [{
-                            "ts": int(datetime.datetime.now().timestamp() * 1000),
+                            "ts": int(now_utc() * 1000),
                             "probes": [],
                         }],
                     })
