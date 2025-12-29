@@ -14,7 +14,7 @@ class IbbqWebConfig: # pylint: disable=too-many-instance-attributes
 
 
     def load(self):
-        with open(self._cfg_file, 'r') as f_obj:
+        with open(self._cfg_file, 'r', encoding='utf-8') as f_obj:
             cfg = json.load(f_obj)
 
         self.http_port = cfg.get('http_port', self._http_port)
@@ -32,7 +32,7 @@ class IbbqWebConfig: # pylint: disable=too-many-instance-attributes
         if not self._loaded:
             return
 
-        with open(self._cfg_file, 'w') as f_obj:
+        with open(self._cfg_file, 'w', encoding='utf-8') as f_obj:
             json.dump({
                 'http_port': self.http_port,
                 'tls': {

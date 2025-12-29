@@ -221,8 +221,7 @@ class WebServer:
 
                         if msg.type != aiohttp.WSMsgType.TEXT:
                             raise TypeError(
-                                "Received message %d:%s is not WSMsgType.TEXT" %
-                                (msg.type, msg.data)
+                                f"Received message {msg.type}:{msg.data} is not WSMsgType.TEXT"
                             )
                         await self._ws_handle_cmd(json.loads(msg.data))
                     else:

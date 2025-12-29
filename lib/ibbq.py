@@ -11,7 +11,7 @@ import bleak
 log = logging.getLogger('ibbqweb')
 
 
-ALARM_SILENCE_TIMEOUT = (5 * 60) # seconds. device uses 5 min so we will too
+ALARM_SILENCE_TIMEOUT = 5 * 60  # seconds. device uses 5 min so we will too
 
 class Characteristics(enum.IntEnum):
     SETTINGS_NOTIFY         = 0xfff1    # Subscribe
@@ -41,7 +41,7 @@ PAIR_KEY = b"\x21\x07\x06\x05\x04\x03\x02\x01\xb8\x22\x00\x00\x00\x00\x00"
 
 
 class IBBQ: # pylint: disable=too-many-instance-attributes
-    def __init__(self, maxhistory=(60*60*8)):
+    def __init__(self, maxhistory=60*60*8):
         self._celcius = False
         self._device = None
         self._characteristics = {}
@@ -153,7 +153,7 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
             else:
                 self._device = await bleak.BleakScanner.find_device_by_address(address)
                 if self._device is None:
-                    raise ValueError("Device with address %s not found" % address)
+                    raise ValueError(f"Device with address {address} not found")
         elif address is not None and self._device.address != address:
             raise NotImplementedError("Changing BLE address not supported")
 
