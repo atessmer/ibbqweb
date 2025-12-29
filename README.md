@@ -58,6 +58,37 @@ sudo -u ibbqweb ./ibbqweb.py
 git config --local core.hooksPath .githooks/
 ```
 
+### Systemd Service
+
+The following steps can be used to add an ibbqweb service to systemd to start ibbqweb on system start.
+
+#### /etc/systemd/system/ibbqweb.service
+
+```
+[Unit]
+Description=iBBQWeb service
+After=network.target
+
+[Service]
+User=ibbqweb
+ExecStart=/usr/local/bin/ibbqweb/ibbqweb.py
+
+[Install]
+WantedBy=multi-user.target
+```
+
+#### Reload systemd service config
+
+```
+sudo systemctl daemon-reload
+```
+
+#### Monitoring logs
+
+```
+journalctl -u ibbqweb.service -f
+```
+
 ### TLS via Let's Encrypt:
 
 The following steps can be used to generate and use a free TLS certificate for the web front-end from Let's Encrypt.
