@@ -25,31 +25,32 @@ def init_logging(level, syslog=False):
     handler.setFormatter(logging.Formatter(log_fmt))
     log.addHandler(handler)
 
-async def device_manager(ibbq):
+async def device_manager(_ibbq):
     log.info("Connecting to iBBQ...")
     while True:
         try:
-            await ibbq.connect(ibbq.address)
-            log.info("iBBQ Connected")
+            async with _ibbq as ibbq:
+                await ibbq.connect(ibbq.address)
+                log.info("iBBQ Connected")
 
-            await ibbq.subscribe()
+                await ibbq.subscribe()
 
-            while True:
-                if not ibbq.connected:
-                    raise ConnectionError("Disconnected from iBBQ %s" %
-                                          ibbq.address)
+                while True:
+                    if not ibbq.connected:
+                        raise ConnectionError("Disconnected from iBBQ %s" %
+                                              ibbq.address)
 
-                reading = ibbq.probe_reading
-                if reading is not None:
-                    log.debug("Battery: %s%%", str(ibbq.battery_level))
-                    temp_strs = [
-                        "%s%s" % (temp, "" if temp is None else "C")
-                        for temp in reading["probes"]
-                    ]
-                    log.debug("Probe temps: " + ', '.join(["%s" for _ in range(len(temp_strs))]),
-                              *temp_strs)
+                    reading = ibbq.probe_reading
+                    if reading is not None:
+                        log.debug("Battery: %s%%", str(ibbq.battery_level))
+                        temp_strs = [
+                            "%s%s" % (temp, "" if temp is None else "C")
+                            for temp in reading["probes"]
+                        ]
+                        log.debug("Probe temps: " + ', '.join(["%s" for _ in range(len(temp_strs))]),
+                                  *temp_strs)
 
-                await asyncio.sleep(5)
+                    await asyncio.sleep(5)
         except asyncio.CancelledError:
             return
         except (ConnectionError, asyncio.TimeoutError):
@@ -80,17 +81,17 @@ async def main():
     cfg = lib.config.IbbqWebConfig(args.config)
     cfg.load()
 
-    async with IBBQ() as ibbq:
-        if cfg.unit == 'C':
-            await ibbq.set_unit_celcius()
-        else:
-            await ibbq.set_unit_farenheit()
+    ibbq = IBBQ()
+    if cfg.unit == 'C':
+        await ibbq.set_unit_celcius()
+    else:
+        await ibbq.set_unit_farenheit()
 
-        async with WebServer(cfg, ibbq) as webserver:
-            await asyncio.gather(
-                device_manager(ibbq),
-                webserver.start(),
-            )
+    async with WebServer(cfg, ibbq) as webserver:
+        await asyncio.gather(
+            device_manager(ibbq),
+            webserver.start(),
+        )
 
 if __name__ == "__main__":
     try:

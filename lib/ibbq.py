@@ -56,8 +56,10 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         return self
 
     async def __aexit__(self, *excinfo):
-        if self.connected:
+        if self._client is not None:
             await self._client.disconnect()
+            self._client = None
+            self._device = None
 
     @property
     def address(self):
