@@ -542,14 +542,16 @@ const renderConnectionState = (state) => {
       'bi-wifi',
       'bi-wifi-off',
       'bi-exclamation-triangle-fill',
+      'text-danger',
+      'text-warning',
    );
 
    if (state == ConnectionState.CONNECTED) {
       el.classList.add('bi-wifi');
    } else if (state == ConnectionState.DISCONNECTED) {
-      el.classList.add('bi-wifi-off');
+      el.classList.add('bi-wifi-off', 'text-danger');
    } else {
-      el.classList.add('bi-exclamation-triangle-fill');
+      el.classList.add('bi-exclamation-triangle-fill', 'text-warning');
    }
 };
 
