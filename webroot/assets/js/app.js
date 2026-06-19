@@ -1,5 +1,7 @@
 import * as Alert from './alert.js';
+import * as Bootstrap from 'bootstrap';
 import CanvasJS from 'canvasjs';
+import * as Chromecast from './chromecast.js';
 import * as PWA from './pwa.js';
 import * as Utils from './utils.js';
 import * as WS from './websocket.js';
@@ -762,6 +764,25 @@ const registerServiceWorker = async () => {
 };
 registerServiceWorker();
 
+const _urlTabChange = () => {
+   const hash = window.location.hash;
+   if (hash) {
+      const triggerEl = document.querySelector(`[data-bs-target="${hash}"]`);
+      if (triggerEl) {
+         const tab = new Bootstrap.Tab(triggerEl);
+         tab.show();
+      }
+   }
+};
+
+const initUrlTab = () => {
+   _urlTabChange();
+
+   window.addEventListener('hashchange', (event) => {
+      _urlTabChange();
+   });
+};
+
 document.addEventListener('readystatechange', (e) => {
    if (document.readyState === "complete") {
       renderConnectionState(ConnectionState.UNKNOWN);
@@ -770,6 +791,7 @@ document.addEventListener('readystatechange', (e) => {
       initProbeSettingsModal();
       Alert.init();
       initChart();
+      initUrlTab();
 
       // Request the screen wake lock to prevent screen from sleeping when
       // monitoring temps
@@ -783,3 +805,9 @@ document.addEventListener('readystatechange', (e) => {
       });
    }
 });
+
+window['__onGCastApiAvailable'] = function(isAvailable) {
+   if (isAvailable) {
+      Chromecast.initCastApi();
+   }
+};

@@ -1,7 +1,7 @@
 import * as Utils from './utils.js';
 import * as WS from './websocket.js';
 
-let alertModal;
+let alertModal = null;
 let inStopHandler = false;
 
 const alertAudio = new Audio('/assets/audio/AlertTone.mp3');
@@ -57,6 +57,9 @@ const initPlayback = () => {
 };
 
 const init = () => {
+   if (Utils.isCasting()) {
+      return;
+   }
    initPlayback();
    initAlertModal();
 };
@@ -99,13 +102,17 @@ const initAlertModal = () => {
 };
 
 const start = () => {
-   alertModal.show();
+   if (alertModal != null) {
+      alertModal.show();
+   }
 };
 
 const stop = () => {
-   inStopHandler = true;
-   alertModal.hide();
-   inStopHandler = false;
+   if (alertModal != null) {
+      inStopHandler = true;
+      alertModal.hide();
+      inStopHandler = false;
+   }
 };
 
 export {
