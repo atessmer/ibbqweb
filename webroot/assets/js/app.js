@@ -184,7 +184,7 @@ const initProbeSettingsModal = () => {
                return;
             }
 
-            WS.setProbeTargetTemp(probe, preset, min, max);
+            WS.setProbeTargetTemp(probe, preset, tempToC(min), tempToC(max));
          } else {
             return;
          }

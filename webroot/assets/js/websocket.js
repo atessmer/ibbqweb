@@ -125,13 +125,13 @@ const send = (payload) => {
    return true;
 }
 
-const setProbeTargetTemp = (probe, preset, min, max) => {
+const setProbeTargetTemp = (probe, preset, minC, maxC) => {
    return send({
       cmd: 'set_probe_target_temp',
       probe: probe,
       preset: preset,
-      min_temp: isNaN(min) ? null : tempToC(min),  // always C over the wire
-      max_temp: isNaN(max) ? null : tempToC(max),  // always C over the wire
+      min_temp: isNaN(minC) ? null : minC,  // always C over the wire
+      max_temp: isNaN(maxC) ? null : maxC,  // always C over the wire
    });
 };
 
