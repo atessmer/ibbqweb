@@ -30,10 +30,6 @@ const init = () => {
       return;
    }
 
-   if (Utils.isCasting()) {
-      return;
-   }
-
    window.addEventListener('beforeinstallprompt', (e) => {
       let installPWAPrompt = e;
       e.preventDefault();

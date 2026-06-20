@@ -1,12 +1,5 @@
 import * as Bootstrap from 'bootstrap';
 
-const isCasting = () => {
-   const urlParams = new URLSearchParams(window.location.search);
-   const cast = urlParams.get('cast');
-
-   return cast != null && (cast.toLowerCase() == 'true' || cast == '1');
-};
-
 const renderToast = (html) => {
    const template = document.createElement('template');
    template.innerHTML = html;
@@ -41,8 +34,12 @@ const renderModal = (html) => {
    };
 }
 
+const isCastReceiver = () => {
+   return navigator.userAgent.includes("CrKey");
+};
+
 export {
-   isCasting,
    renderToast,
    renderModal,
+   isCastReceiver,
 };

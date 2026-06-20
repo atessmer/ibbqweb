@@ -1,13 +1,22 @@
 /*
  * Uses https://github.com/demille/url-cast-receiver cast application
  */
+import * as Utils from './utils.js';
 
-const applicationID = '5CB45E5A';
-const namespace = 'urn:x-cast:com.url.cast';
+const APP_ID = '5CB45E5A';
+const NAMESPACE = 'urn:x-cast:com.url.cast';
 
 const initCastApi = () => {
+   if (Utils.isCastReceiver()) {
+      initCastReceiver();
+   } else {
+      initCastSender();
+   }
+};
+
+const initCastSender = () => {
    cast.framework.CastContext.getInstance().setOptions({
-      receiverApplicationId: applicationID,
+      receiverApplicationId: APP_ID,
       autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
    });
 
@@ -18,8 +27,12 @@ const initCastApi = () => {
          switch (event.sessionState) {
             case cast.framework.SessionState.SESSION_STARTED:
             case cast.framework.SessionState.SESSION_RESUMED:
-               event.session.addMessageListener(namespace, receiveMessage);
-               startCasting();
+               /*
+               event.session.addMessageListener(NAMESPACE, (namespace, msg) => {
+                  console.log('Received msg: ', msg);
+               });
+               */
+               castCurrentTab();
                break;
             case cast.framework.SessionState.SESSION_ENDED:
                // Anything to do here?
@@ -29,26 +42,54 @@ const initCastApi = () => {
    );
 
    document.addEventListener('shown.bs.tab', (event) => {
-      startCasting();
+      castCurrentTab();
    });
 };
 
-const receiveMessage = (namespace, msg) => {
-   // namespace = 'urn:x-cast:com.url.cast'
-   // it only ever says 'ok' - just confirming when a url has been received
-}
-
-const startCasting = () => {
+const castCurrentTab = () => {
    let session = cast.framework.CastContext.getInstance().getCurrentSession();
    if (session == null) {
       return;
    }
 
-   session.sendMessage(namespace, {
-      type: 'iframe', // iframe | location
-      url: window.location.origin + '?cast=true' +
-           document.querySelector('#pageTab .active').dataset['bsTarget'],
+   /*
+    * Use type='loc' so we become the parent page on the chromecast receiver.
+    * This allows us to use the full receiver framework to set options as needed
+    * and implement our own sender/receiver messaging.
+    */
+   session.sendMessage(NAMESPACE, {
+      type: 'loc', // iframe | loc
+      url: window.location.origin + document.querySelector('#pageTab .active').dataset['bsTarget'],
    });
+};
+
+const initCastReceiver = () => {
+   const options = new cast.framework.CastReceiverOptions();
+   options.customNamespaces = {
+      [NAMESPACE]: cast.framework.system.MessageType.JSON,
+   };
+   options.disableIdleTimeout = true;
+
+   const context = cast.framework.CastReceiverContext.getInstance();
+   context.start(options);
+
+   context.addCustomMessageListener(NAMESPACE, (event) => {
+      //context.sendCustomMessage(NAMESPACE, event.senderId, 'ok');
+      window.location.href = event.data.url;
+   });
+
+   setReceiverStatus();
+   document.addEventListener('shown.bs.tab', (event) => {
+      setReceiverStatus();
+   });
+};
+
+const setReceiverStatus = () => {
+   const context = cast.framework.CastReceiverContext.getInstance();
+
+   context.setApplicationState(
+      'iBBQ Web: ' + document.querySelector('#pageTab .active').textContent
+   );
 };
 
 export {

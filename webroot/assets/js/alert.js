@@ -57,9 +57,6 @@ const initPlayback = () => {
 };
 
 const init = () => {
-   if (Utils.isCasting()) {
-      return;
-   }
    initPlayback();
    initAlertModal();
 };
