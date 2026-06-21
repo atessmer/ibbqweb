@@ -118,6 +118,10 @@ body {
  * Chromecast
  */
 #cast-button {
-   width: 36px;
    height: 36px;
+   margin-bottom: 2px;
+}
+
+.cast-receiver #pageTab .nav-item {
+   display: none;
 }

@@ -27,11 +27,10 @@ const initCastSender = () => {
          switch (event.sessionState) {
             case cast.framework.SessionState.SESSION_STARTED:
             case cast.framework.SessionState.SESSION_RESUMED:
-               /*
                event.session.addMessageListener(NAMESPACE, (namespace, msg) => {
-                  console.log('Received msg: ', msg);
+                  console.log(`${new Date().toISOString()} :: Received msg: `, msg);
                });
-               */
+
                castCurrentTab();
                break;
             case cast.framework.SessionState.SESSION_ENDED:
@@ -64,6 +63,8 @@ const castCurrentTab = () => {
 };
 
 const initCastReceiver = () => {
+   document.body.classList.add('cast-receiver');
+
    const options = new cast.framework.CastReceiverOptions();
    options.customNamespaces = {
       [NAMESPACE]: cast.framework.system.MessageType.JSON,
@@ -74,9 +75,27 @@ const initCastReceiver = () => {
    context.start(options);
 
    context.addCustomMessageListener(NAMESPACE, (event) => {
-      //context.sendCustomMessage(NAMESPACE, event.senderId, 'ok');
+      context.sendCustomMessage(NAMESPACE, undefined, {
+         type: 'Location',
+         sender: event.senderId,
+         url: event.data.url,
+         all_senders: context.getSenders().map(s => s.id),
+      });
       window.location.href = event.data.url;
    });
+
+   for (type in [cast.framework.system.EventType.SENDER_CONNECTED,
+                 cast.framework.system.EventType.SENDER_DISCONNECTED]) {
+      context.addEventListener(type, (event) => {
+         const senders = context.getSenders();
+         context.sendCustomMessage(NAMESPACE, undefined, {
+            type: event.type,
+            sender: event.senderId,
+            reason: event.reason,
+            all_senders: context.getSenders().map(s => s.id),
+         });
+      });
+   }
 
    setReceiverStatus();
    document.addEventListener('shown.bs.tab', (event) => {
