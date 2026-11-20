@@ -47,7 +47,7 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         self._characteristics = {}
         self._readings = collections.deque(maxlen=maxhistory) # temps stored in celcius
         self._target_temps = {}
-        self._silence_temp_alert_until = datetime.datetime.now()
+        self._silence_temp_alert_until = datetime.datetime.now(datetime.timezone.utc)
         self._cur_battery_level = None
         self._client = None
         self._change_event = asyncio.Event()
@@ -96,13 +96,16 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
     @property
     def target_temp_alert(self):
         if (
-            datetime.datetime.now() < self._silence_temp_alert_until or
+            datetime.datetime.now(datetime.timezone.utc) < self._silence_temp_alert_until or
             self.probe_reading is None
         ):
             return False
 
         probe_readings = list(self.probe_reading['probes'])
         for (probe, target_temp) in self._target_temps.items():
+            if not isinstance(probe, int) or isinstance(probe, bool) or not 0 <= probe < len(probe_readings):
+                log.warning("Ignoring target temperature for invalid probe index: %r", probe)
+                continue
             if probe_readings[probe] is None:
                 # Probe disconnected
                 continue
@@ -248,6 +251,8 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
     async def set_probe_target_temp(self, probe, preset, min_temp_c, max_temp_c):
         if not self.connected:
             raise ConnectionError("Device not connected")
+        if isinstance(probe, bool) or not isinstance(probe, int) or not 0 <= probe <= 255:
+            raise ValueError("probe must be an integer between 0 and 255")
 
         # device uses temp * 10, with extreems if not set
         dev_min_temp_c = int(min_temp_c * 10) if min_temp_c else  -3000
@@ -273,12 +278,12 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
                 "min_temp_c": min_temp_c,
                 "max_temp_c": max_temp_c,
             }
-        self._silence_temp_alert_until = datetime.datetime.now()
+        self._silence_temp_alert_until = datetime.datetime.now(datetime.timezone.utc)
 
         self._notify_change()
 
     def _silence_client_alarm(self):
-        self._silence_temp_alert_until = datetime.datetime.now() + \
+        self._silence_temp_alert_until = datetime.datetime.now(datetime.timezone.utc) + \
                                          datetime.timedelta(seconds=ALARM_SILENCE_TIMEOUT)
         self._notify_change()
 
@@ -318,8 +323,11 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
 
     def _cb_realtime_temp_notify(self, handle, data):
         # int16 temperature per probe, always celcius
+        if len(data) % 2:
+            log.warning("Ignoring malformed temperature notification (%d bytes)", len(data))
+            return
         reading = {
-            'timestamp': datetime.datetime.now(),
+            'timestamp': datetime.datetime.now(datetime.timezone.utc),
             'probes': [
                 self._tempc_bin_to_float(probe_data)
                 for probe_data in [data[i:i+2] for i in range(0, len(data), 2)]
@@ -341,6 +349,9 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         self._notify_change()
 
     def _cb_settings_notify(self, handle, data):
+        if not data:
+            log.warning("Ignoring empty settings notification")
+            return
         def notify_alarm(data):
             if data[1] == 0xff:
                 log.info("Alarm silenced")
@@ -423,12 +434,15 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
                 log.warning("Unhandled settings successful callback: %s", data)
 
         handlers = {
-            0x04: notify_alarm,
-            0x20: notify_pairing_key,
-            0x21: notify_connect,
-            0x23: notify_version,
-            0x24: notify_voltage,
-            0xff: notify_success,
+            0x04: (notify_alarm, 2),
+            0x20: (notify_pairing_key, 1),
+            0x21: (notify_connect, 2),
+            0x23: (notify_version, 4),
+            0x24: (notify_voltage, 5),
+            0xff: (notify_success, 2),
         }
-        data_handler = handlers.get(data[0], notify_unhandled)
+        data_handler, min_data_len = handlers.get(data[0], (notify_unhandled, 1))
+        if len(data) < min_data_len:
+            log.warning("Ignoring truncated settings notification: %s", data)
+            return
         data_handler(data)

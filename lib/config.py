@@ -17,15 +17,36 @@ class IbbqWebConfig: # pylint: disable=too-many-instance-attributes
         with open(self._cfg_file, 'r', encoding='utf-8') as f_obj:
             cfg = json.load(f_obj)
 
-        self.http_port = cfg.get('http_port', self._http_port)
+        if not isinstance(cfg, dict):
+            raise ValueError("configuration must be a JSON object")
+
+        http_port = cfg.get('http_port', self._http_port)
+        if isinstance(http_port, bool) or not isinstance(http_port, int):
+            raise TypeError("http_port must be of type <int>")
+        if not 1 <= http_port <= 65535:
+            raise ValueError("http_port must be between 1 and 65535")
+        self._http_port = http_port
         tls = cfg.get('tls', {})
+        if not isinstance(tls, dict):
+            raise TypeError("tls must be an object")
         self._tls_cert = tls.get('cert', self._tls_cert)
         self._tls_key = tls.get('key', self._tls_key)
-        self.unit = cfg.get('unit', self._unit)
-        self._allow_poweroff = cfg.get('allow_poweroff', self._allow_poweroff)
+        if self._tls_cert is not None and not isinstance(self._tls_cert, str):
+            raise TypeError("tls.cert must be a string or null")
+        if self._tls_key is not None and not isinstance(self._tls_key, str):
+            raise TypeError("tls.key must be a string or null")
+        if (self._tls_cert is None) != (self._tls_key is None):
+            raise ValueError("Must specify both or neither TLS 'cert' and 'key'")
+        unit = cfg.get('unit', self._unit)
+        if not isinstance(unit, str) or unit not in ('C', 'F'):
+            raise ValueError("unit must be 'C' or 'F'")
+        self._unit = unit
+        allow_poweroff = cfg.get('allow_poweroff', self._allow_poweroff)
+        if not isinstance(allow_poweroff, bool):
+            raise TypeError("allow_poweroff must be a boolean")
+        self._allow_poweroff = allow_poweroff
 
         self._loaded = True
-        self.write()
 
 
     def write(self):
@@ -51,8 +72,10 @@ class IbbqWebConfig: # pylint: disable=too-many-instance-attributes
 
     @http_port.setter
     def http_port(self, http_port):
-        if not isinstance(http_port, int):
+        if isinstance(http_port, bool) or not isinstance(http_port, int):
             raise TypeError("http_port must be of type <int>")
+        if not 1 <= http_port <= 65535:
+            raise ValueError("http_port must be between 1 and 65535")
 
         if http_port != self._http_port:
             self._http_port = http_port
