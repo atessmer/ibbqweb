@@ -277,8 +277,8 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
             raise ValueError("probe must be an integer between 0 and 255")
 
         # device uses temp * 10, with extreems if not set
-        dev_min_temp_c = int(min_temp_c * 10) if min_temp_c else  -3000
-        dev_max_temp_c = int(max_temp_c * 10) if max_temp_c else 3020
+        dev_min_temp_c = int(min_temp_c * 10) if min_temp_c is not None else -3000
+        dev_max_temp_c = int(max_temp_c * 10) if max_temp_c is not None else 3020
 
         # See SettingsData.SET_TARGET_TEMP
         data = b"\x01" + struct.pack("<Bhh", probe, dev_min_temp_c,

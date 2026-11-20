@@ -158,13 +158,24 @@ const initProbeSettingsModal = () => {
 
             WS.clearProbeTargetTemp(probe);
          } else if (e.target.dataset.ibbqAction == "save") {
-            const validateInt = (el) => {
-               if (!el.disabled && isNaN(parseInt(el.value))) {
+            const parseIntValue = (el) => {
+               const rawValue = el.value.trim();
+               if (rawValue === '') {
+                  if (el.disabled) {
+                     el.classList.remove('is-invalid');
+                     return { valid: true, value: null };
+                  }
                   el.classList.add('is-invalid');
-                  return false;
+                  return { valid: false, value: null };
+               }
+
+               const value = Number(rawValue);
+               if (!Number.isInteger(value)) {
+                  el.classList.add('is-invalid');
+                  return { valid: false, value: null };
                }
                el.classList.remove('is-invalid');
-               return true;
+               return { valid: true, value };
             };
 
             let valid = true;
@@ -177,17 +188,17 @@ const initProbeSettingsModal = () => {
                presetEl.classList.remove('is-invalid');
             }
 
-            const min = parseInt(tempMinEl.value);
-            valid = validateInt(tempMinEl) && valid; // 'valid' checked second to avoid short circuiting
+            const min = parseIntValue(tempMinEl);
+            valid &= min.valid;
 
-            const max = parseInt(tempMaxEl.value); // 'valid' checked second to avoid short circuiting
-            valid = validateInt(tempMaxEl) && valid;
+            const max = parseIntValue(tempMaxEl);
+            valid &= max.valid;
 
             if (!valid) {
                return;
             }
 
-            WS.setProbeTargetTemp(probe, preset, tempToC(min), tempToC(max));
+            WS.setProbeTargetTemp(probe, preset, tempToC(min.value), tempToC(max.value));
          } else {
             return;
          }

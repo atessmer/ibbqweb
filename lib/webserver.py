@@ -162,6 +162,8 @@ class WebServer:
                 raise ValueError('max_temp is required for a target temperature')
             if preset == 'custom.range' and minimum is None:
                 raise ValueError('min_temp is required for a custom range')
+            minimum = int(minimum) if minimum is not None else None
+            maximum = int(maximum) if maximum is not None else None
             await self._ibbq.set_probe_target_temp(probe, preset, minimum, maximum)
         elif cmd == 'silence_alarm':
             await self._ibbq.silence_alarm()
