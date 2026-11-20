@@ -58,9 +58,17 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
 
     async def __aexit__(self, *excinfo):
         if self._client is not None:
-            await self._client.disconnect()
+            await self._cleanup_client(clear_device=True)
+
+    async def _cleanup_client(self, clear_device=False):
+        try:
+            if self._client is not None and self._client.is_connected:
+                await self._client.disconnect()
+        finally:
             self._client = None
-            self._device = None
+            if clear_device:
+                self._device = None
+            self._characteristics.clear()
 
     @property
     def address(self):
@@ -150,7 +158,7 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
                 data,
                 response=response,
             )
-        except bleak.exc.BleakDBusError as ex:
+        except bleak.exc.BleakError as ex:
             raise ConnectionError("Failed to write gatt char") from ex
 
     def _cb_disconnect(self, client):
@@ -174,10 +182,13 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         self._client = bleak.BleakClient(self._device, disconnected_callback=self._cb_disconnect)
         try:
             await self._client.connect()
+            await self._init_client()
         except bleak.exc.BleakError as ex:
+            await self._cleanup_client()
             raise ConnectionError("Failure to connect to device") from ex
-
-        await self._init_client()
+        except BaseException:
+            await self._cleanup_client()
+            raise
 
     async def _init_client(self):
         log.debug("Discovered characteristics:")
