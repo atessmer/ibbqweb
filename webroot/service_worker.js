@@ -9,7 +9,7 @@ const staticCacheAssets = [
 self.addEventListener('install', (e) => {
    e.waitUntil(
       caches.open(staticCacheName).then((cache) => {
-         cache.addAll(staticCacheAssets);
+         return cache.addAll(staticCacheAssets);
       })
    );
 });
@@ -27,15 +27,10 @@ self.addEventListener('activate', (e) => {
 
 // Dummy fetch handler
 self.addEventListener('fetch', (e) => {
-   if (e.request.mode != 'websocket') {
-      // Can't cache partial responses, so either serve the whole thing if it's
-      // int he cache, or forward on the request as-is
-      if (e.request.headers.has('Range')) {
-         e.respondWith(
-            caches.match(e.request.url) || fetch(e.request)
-         );
-         return;
-      }
+   if (e.request.method !== 'GET' || new URL(e.request.url).origin !== self.location.origin ||
+       e.request.headers.has('Range')) {
+      return;
+   }
 
       // Try to always load the latest conect from the server amd cache it...
       // but after NETWORK_TIMEOUT (ms), load from the cache instead so the
@@ -46,7 +41,9 @@ self.addEventListener('fetch', (e) => {
       e.respondWith(
          caches.open(dynamicCacheName).then((cache) => {
             let fetchPromise = fetch(e.request).then((fetchResp) => {
-               cache.put(e.request, fetchResp.clone());
+               if (fetchResp.ok && fetchResp.type === 'basic') {
+                  cache.put(e.request, fetchResp.clone());
+               }
                return fetchResp;
             });
 
@@ -54,11 +51,10 @@ self.addEventListener('fetch', (e) => {
                fetchPromise,
                new Promise((resolve, reject) => setTimeout(reject, NETWORK_TIMEOUT)),
             ]).catch(() => {
-               return caches.match(e.request.url).then((cacheResp) => {
+               return cache.match(e.request).then((cacheResp) => {
                   return cacheResp || fetchPromise;
                });
             });
          })
       );
-   }
 });
