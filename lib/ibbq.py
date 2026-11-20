@@ -20,21 +20,31 @@ class Characteristics(enum.IntEnum):
     REALTIME_TEMP_NOTIFY    = 0xfff4    # Subscribe
     SETTINGS_UPDATE         = 0xfff5    # Write
 
+class SettingsNotification(enum.IntEnum):
+    ALARM = 0x04
+    PAIRING_KEY = 0x20
+    CONNECT = 0x21
+    VERSION = 0x23
+    VOLTAGE = 0x24
+    SUCCESS = 0xff
+
 class SettingsData(enum.Enum):
     ENABLE_REALTIME_DATA  = b"\x0B\x01\x00\x00\x00\x00"
     ENABLE_BATTERY_DATA   = b"\x08\x24\x00\x00\x00\x00"
-    SET_TARGET_TEMP       = b"\x01{probe}{min}{max}" # probe = uint8,
-                                                     # min/max = int16 in 10^-1 Celcius
+    SET_TARGET_TEMP       = b"\x01{probe}{min}{max}"       # probe = uint8,
+                                                           # min/max = int16 in 10^-1 Celcius
     SET_UNIT_CELCIUS      = b"\x02\x00\x00\x00\x00\x00"
     SET_UNIT_FARENHEIT    = b"\x02\x01\x00\x00\x00\x00"
 
-    GET_VERSION          = b"\x08\x23\x00\x00\x00\x00"
-    SILENCE_ALARM        = b"\x04{probe}\x00\x00\x00\x00" # probe = uint8; 0xff for all
-    DEVICE_ALARM_ON       = b"\xfd\x01\x01\x01\x00\x00" # Only for "grilleye" device?
-    DEVICE_ALARM_OFF      = b"\xfd\x01\x00\x01\x00\x00" # Only for "grilleye" device?
-    UNKNOWN1            = b"\x12\x03\x00\x00\x00\x00" # App sends this during init
-                                                      # Return: b"\xff\x12\x00\x00\x00\x00"
-    UNKNOWN2            = b"\xff\x01\x00\x00\x00\x00" # Unused in app
+    GET_VERSION           = b"\x08\x23\x00\x00\x00\x00"
+    SILENCE_ALARM         = b"\x04{probe}\x00\x00\x00\x00" # probe = uint8; 0xff for all
+    DEVICE_ALARM_ON       = b"\xfd\x01\x01\x01\x00\x00"    # Only for "grilleye" device?
+    DEVICE_ALARM_OFF      = b"\xfd\x01\x00\x01\x00\x00"    # Only for "grilleye" device?
+    UNKNOWN1              = b"\x12\x03\x00\x00\x00\x00"    # App sends this during init
+                                                           # Return: b"\xff\x12\x00\x00\x00\x00"
+    UNKNOWN2              = b"\xff\x01\x00\x00\x00\x00"    # Unused in app
+
+DISCONNECTED_PROBE_TEMPERATURE = 0xfff6
 
 
 PAIR_KEY = b"\x21\x07\x06\x05\x04\x03\x02\x01\xb8\x22\x00\x00\x00\x00\x00"
@@ -331,7 +341,7 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
     def _tempc_bin_to_float(probe_data):
         """Temperature (Celcius) binary to float"""
         raw_temp = struct.unpack('<H', probe_data)[0]
-        if raw_temp == 0xfff6:
+        if raw_temp == DISCONNECTED_PROBE_TEMPERATURE:
             return None
         return float(raw_temp) / 10
 
@@ -339,7 +349,7 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
     def _tempc_float_to_bin(temp):
         """Temperature (Celcius) float to binary"""
         if temp is None:
-            raw_temp = 0xfff6
+            raw_temp = DISCONNECTED_PROBE_TEMPERATURE
         else:
             raw_temp = int(temp * 10)
         return struct.pack('<H', raw_temp)
@@ -457,12 +467,12 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
                 log.warning("Unhandled settings successful callback: %s", data)
 
         handlers = {
-            0x04: (notify_alarm, 2),
-            0x20: (notify_pairing_key, 1),
-            0x21: (notify_connect, 2),
-            0x23: (notify_version, 4),
-            0x24: (notify_voltage, 5),
-            0xff: (notify_success, 2),
+            SettingsNotification.ALARM: (notify_alarm, 2),
+            SettingsNotification.PAIRING_KEY: (notify_pairing_key, 1),
+            SettingsNotification.CONNECT: (notify_connect, 2),
+            SettingsNotification.VERSION: (notify_version, 4),
+            SettingsNotification.VOLTAGE: (notify_voltage, 5),
+            SettingsNotification.SUCCESS: (notify_success, 2),
         }
         data_handler, min_data_len = handlers.get(data[0], (notify_unhandled, 1))
         if len(data) < min_data_len:
