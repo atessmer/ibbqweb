@@ -198,6 +198,7 @@ class WebServer:
             readings_since = self._ibbq.probe_readings_since
             full_history = True
             while True:
+                change_generation = self._ibbq.change_generation
                 if self._ibbq.probe_readings_since > readings_since:
                     readings_since = self._ibbq.probe_readings_since
                     full_history = True
@@ -251,7 +252,9 @@ class WebServer:
                     await wsock.send_json(payload)
 
                 recv_task = asyncio.create_task(wsock.receive())
-                update_task = asyncio.create_task(self._ibbq.await_change())
+                update_task = asyncio.create_task(
+                    self._ibbq.await_change(change_generation)
+                )
 
                 try:
                     done, pending = await asyncio.wait(

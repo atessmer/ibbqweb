@@ -51,6 +51,7 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         self._cur_battery_level = None
         self._client = None
         self._change_event = asyncio.Event()
+        self._change_generation = 0
 
     async def __aenter__(self):
         return self
@@ -126,11 +127,21 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         return self._cur_battery_level
 
     def _notify_change(self):
+        self._change_generation += 1
         self._change_event.set()
-        self._change_event.clear()
 
-    async def await_change(self):
-        await self._change_event.wait()
+    @property
+    def change_generation(self):
+        return self._change_generation
+
+    async def await_change(self, generation=None):
+        """Wait until state has changed since the supplied generation."""
+        if generation is None:
+            generation = self._change_generation
+        while self._change_generation == generation:
+            await self._change_event.wait()
+            self._change_event.clear()
+        return self._change_generation
 
     async def _write_gatt_char(self, char, data, response=False):
         try:
