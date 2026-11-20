@@ -325,6 +325,7 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
 
     def clear_history(self):
         self._readings.clear()
+        self._notify_change()
 
     @staticmethod
     def _tempc_bin_to_float(probe_data):
