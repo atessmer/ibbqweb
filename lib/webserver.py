@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import json
 import logging
+import math
 import os
 import os.path
 import ssl
@@ -13,6 +14,12 @@ log = logging.getLogger('ibbqweb')
 
 
 WEBROOT = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../webroot")
+WS_MAX_MESSAGE_SIZE = 4 * 1024
+TARGET_PRESETS = {
+    'beef.rare', 'beef.medrare', 'beef.medium', 'beef.medwell', 'beef.well',
+    'chicken', 'fish', 'pork', 'smoke.cold', 'smoke.bbq',
+    'custom.temp', 'custom.range',
+}
 
 
 def now_utc():
@@ -108,39 +115,77 @@ class WebServer:
         return tcpsite.start()
 
     async def _ws_handle_cmd(self, data):
-        try:
-            if data["cmd"] == "set_unit":
-                self._cfg.unit = data["unit"]
-                if data["unit"] == 'C':
-                    await self._ibbq.set_unit_celcius()
-                else:
-                    await self._ibbq.set_unit_farenheit()
-            elif data["cmd"] == "set_probe_target_temp":
-                await self._ibbq.set_probe_target_temp(data["probe"],
-                                                       data["preset"],
-                                                       data["min_temp"],
-                                                       data["max_temp"])
-            elif data["cmd"] == "silence_alarm":
-                await self._ibbq.silence_alarm()
+        if not isinstance(data, dict) or not isinstance(data.get('cmd'), str):
+            raise ValueError('command must be a JSON object with a string cmd')
 
-            elif data["cmd"] == "clear_history":
-                self._ibbq.clear_history()
+        cmd = data['cmd']
+        schemas = {
+            'set_unit': {'cmd', 'unit'},
+            'set_probe_target_temp': {'cmd', 'probe', 'preset', 'min_temp', 'max_temp'},
+            'silence_alarm': {'cmd'},
+            'clear_history': {'cmd'},
+            'poweroff': {'cmd'},
+        }
+        if cmd not in schemas:
+            raise ValueError(f'unknown command: {cmd}')
+        if data.keys() != schemas[cmd]:
+            raise ValueError(f'invalid fields for command {cmd}')
 
-            elif data["cmd"] == "poweroff":
-                if self._cfg.allow_poweroff:
-                    os.system('sudo poweroff')
-                else:
-                    log.warning('Attempted to power off the server when '
-                                '"allow_poweroff" is disabled.')
-        except ConnectionError:
-            # Send an error back to the client?
-            pass
+        if cmd == 'set_unit':
+            unit = data['unit']
+            if not isinstance(unit, str) or unit not in ('C', 'F'):
+                raise ValueError('unit must be C or F')
+            self._cfg.unit = unit
+            if unit == 'C':
+                await self._ibbq.set_unit_celcius()
+            else:
+                await self._ibbq.set_unit_farenheit()
+        elif cmd == 'set_probe_target_temp':
+            probe, preset = data['probe'], data['preset']
+            minimum, maximum = data['min_temp'], data['max_temp']
+            if isinstance(probe, bool) or not isinstance(probe, int) or not 0 <= probe <= 255:
+                raise ValueError('probe must be an integer between 0 and 255')
+            if preset is not None and (not isinstance(preset, str) or preset not in TARGET_PRESETS):
+                raise ValueError('invalid preset')
+            for name, value in (('min_temp', minimum), ('max_temp', maximum)):
+                if value is not None and (isinstance(value, bool) or
+                        not isinstance(value, (int, float)) or
+                        (isinstance(value, float) and not math.isfinite(value)) or
+                        not -300 <= value <= 302):
+                    raise ValueError(f'{name} must be a number between -300 and 302 C, or null')
+            if minimum is not None and maximum is not None and minimum > maximum:
+                raise ValueError('min_temp must not exceed max_temp')
+            if preset is None:
+                if minimum is not None or maximum is not None:
+                    raise ValueError('preset may be null only when clearing the target')
+            elif maximum is None:
+                raise ValueError('max_temp is required for a target temperature')
+            if preset == 'custom.range' and minimum is None:
+                raise ValueError('min_temp is required for a custom range')
+            await self._ibbq.set_probe_target_temp(probe, preset, minimum, maximum)
+        elif cmd == 'silence_alarm':
+            await self._ibbq.silence_alarm()
+        elif cmd == 'clear_history':
+            self._ibbq.clear_history()
+        elif cmd == 'poweroff':
+            if self._cfg.allow_poweroff:
+                try:
+                    process = await asyncio.create_subprocess_exec('sudo', 'poweroff')
+                    status = await process.wait()
+                    if status:
+                        log.error('Server poweroff command failed with status %d', status)
+                except OSError:
+                    log.exception('Unable to start server poweroff command')
+            else:
+                log.warning('Attempted to power off the server when '
+                            '"allow_poweroff" is disabled.')
 
     def _ws_handler_factory(self):
         async def ws_handler(request):
-            log.info("Websocket connected from %s:%d",
-                     *request.transport.get_extra_info('peername'))
-            wsock = aiohttp.web.WebSocketResponse()
+            peer = request.transport.get_extra_info('peername') if request.transport else None
+            log.info("Websocket connected from %s",
+                     peer[0] if isinstance(peer, tuple) and peer else 'unknown')
+            wsock = aiohttp.web.WebSocketResponse(max_msg_size=WS_MAX_MESSAGE_SIZE)
             await wsock.prepare(request)
 
             client_unit = self._ibbq.unit
@@ -208,29 +253,35 @@ class WebServer:
                 recv_task = asyncio.create_task(wsock.receive())
                 update_task = asyncio.create_task(self._ibbq.await_change())
 
-                done, pending = await asyncio.wait(
-                    [recv_task, update_task],
-                    return_when=asyncio.FIRST_COMPLETED
-                )
-
-                for task in done:
-                    if task == recv_task:
-                        msg = await task
-                        if msg.type == aiohttp.WSMsgType.CLOSE:
-                            return wsock
-
-                        if msg.type != aiohttp.WSMsgType.TEXT:
-                            raise TypeError(
-                                f"Received message {msg.type}:{msg.data} is not WSMsgType.TEXT"
-                            )
-                        await self._ws_handle_cmd(json.loads(msg.data))
-                    else:
-                        await task
-
-                for task in pending:
-                    task.cancel()
-                    try:
-                        await task
-                    except asyncio.CancelledError:
-                        pass
+                try:
+                    done, pending = await asyncio.wait(
+                        [recv_task, update_task],
+                        return_when=asyncio.FIRST_COMPLETED
+                    )
+                    for task in done:
+                        if task == recv_task:
+                            msg = task.result()
+                            if msg.type in (aiohttp.WSMsgType.CLOSE,
+                                            aiohttp.WSMsgType.CLOSED,
+                                            aiohttp.WSMsgType.ERROR):
+                                return wsock
+                            if msg.type != aiohttp.WSMsgType.TEXT:
+                                log.warning('Ignoring non-text WebSocket message: %s', msg.type)
+                                continue
+                            try:
+                                await self._ws_handle_cmd(json.loads(msg.data))
+                            except (json.JSONDecodeError, ValueError, TypeError, KeyError) as exc:
+                                log.warning('Ignoring malformed WebSocket command: %s', exc)
+                            except ConnectionError:
+                                pass
+                            except Exception:
+                                log.exception('WebSocket command failed')
+                        else:
+                            task.result()
+                finally:
+                    for task in (recv_task, update_task):
+                        if not task.done():
+                            task.cancel()
+                    await asyncio.gather(recv_task, update_task,
+                                         return_exceptions=True)
         return ws_handler
