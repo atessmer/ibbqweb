@@ -1,6 +1,7 @@
 import * as Utils from './utils.js';
 
 let ws = null;
+let reconnectTimeoutId = null;
 
 let opts = {};
 let offlineMode = true;
@@ -52,13 +53,19 @@ const renderToastOfflineMode = () => {
 }
 
 const _connect = () => {
-   if (offlineMode) {
+   if (offlineMode || (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN))) {
       return;
    }
 
-   ws = new WebSocket(protocol + window.location.host + "/ws");
+   const socket = new WebSocket(protocol + window.location.host + "/ws");
+   ws = socket;
 
-   ws.onopen = (e) => {
+   socket.onopen = (e) => {
+      if (socket !== ws) return;
+      if (reconnectTimeoutId !== null) {
+         clearTimeout(reconnectTimeoutId);
+         reconnectTimeoutId = null;
+      }
       if (serverDisconnectedToast || offlineModeToast) {
          serverDisconnectedToast && serverDisconnectedToast.hide();
          serverDisconnectedToast = null;
@@ -71,7 +78,8 @@ const _connect = () => {
       }
    };
 
-   ws.onclose = (e) => {
+   socket.onclose = (e) => {
+      if (socket !== ws) return;
       e.isDisconnect = false;
 
       if (offlineMode) {
@@ -81,12 +89,17 @@ const _connect = () => {
       } else {
          if (!serverDisconnectedToast) {
             console.warn("websocket closed: [" + e.code + "]")
-            offlineModeToast && offlineToast.hide();
+            offlineModeToast && offlineModeToast.hide();
             offlineModeToast = null;
             serverDisconnectedToast = renderToastServerDisconnected().toast;
             e.isDisconnect = true;
          }
-         setTimeout(_connect, 1000)
+         if (reconnectTimeoutId === null) {
+            reconnectTimeoutId = setTimeout(() => {
+               reconnectTimeoutId = null;
+               _connect();
+            }, 1000);
+         }
       }
 
       if (typeof opts.onclose === 'function') {
@@ -94,7 +107,8 @@ const _connect = () => {
       }
    };
 
-   ws.onmessage = (e) => {
+   socket.onmessage = (e) => {
+      if (socket !== ws) return;
       if (typeof opts.onmessage === 'function') {
          opts.onmessage(e);
       }
@@ -108,12 +122,22 @@ const init = (options={}) => {
 
 const connect = () => {
    offlineMode = false;
+   if (reconnectTimeoutId !== null) {
+      clearTimeout(reconnectTimeoutId);
+      reconnectTimeoutId = null;
+   }
    _connect();
 };
 
 const disconnect = () => {
    offlineMode = true;
-   ws.close();
+   if (reconnectTimeoutId !== null) {
+      clearTimeout(reconnectTimeoutId);
+      reconnectTimeoutId = null;
+   }
+   if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+      ws.close();
+   }
 };
 
 const send = (payload) => {

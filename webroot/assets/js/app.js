@@ -20,6 +20,7 @@ const probeColors = [
 ]
 const STRIPLINE_TEMP_OPACITY = 0.5
 const STRIPLINE_RANGE_OPACITY = 0.15
+const MAX_SAVED_DATA_BYTES = 10 * 1024 * 1024
 
 const CtoF = (temp) => (temp * 9 / 5) + 32;
 const FtoC = (temp) => (temp - 32) * 5 / 9;
@@ -370,7 +371,7 @@ const resetChartData = (probe_readings) => {
    chart.options.axisY.stripLines = []
    let xMin = new Date().getTime()
    for (const reading of probe_readings) {
-      if (reading.probes.some(temp => temp != null)) {
+      if (Array.isArray(reading.probes) && reading.probes.some(temp => temp != null)) {
          xMin = reading.ts
          break
       }
@@ -417,7 +418,7 @@ const wsOnMessage = (e) => {
             appendChartData(reading);
          }
 
-         for (const i of data.probe_readings[0].probes.keys()) {
+         for (const i of (data.probe_readings[0]?.probes || []).keys()) {
             const probeContainer = document.querySelector(`.probe-container[data-ibbq-probe-idx="${i}"]`)
             const targetTemp = data.target_temps[i]
 
@@ -677,27 +678,48 @@ const initFormFields = () => {
     * View Saved Data
     */
    document.getElementById('ibbq-upload').addEventListener('change', (e) => {
-      new Blob(e.target.files).text().then((text) => {
+      const file = e.target.files[0]
+      if (!file) {
+         return
+      }
+      if (file.size > MAX_SAVED_DATA_BYTES) {
+         renderToastInvalidData()
+         e.target.value = ''
+         return
+      }
+
+      file.text().then((text) => {
          const data = JSON.parse(text)
 
          const isValidProbeReading = (r) => {
-            return Number.isInteger(r.ts) && Array.isArray(r.probes) && r.probes.every((p) => p == null || Number.isInteger(p))
+            return r !== null && typeof r === 'object' &&
+               Number.isSafeInteger(r.ts) && Math.abs(r.ts) <= 8.64e15 &&
+               Array.isArray(r.probes) && r.probes.length <= 4 &&
+               r.probes.every((p) => p === null ||
+                  (typeof p === 'number' && Number.isFinite(p) && p >= 0 && p <= 6553.5))
          }
 
-         if (!data.probe_readings || !data.probe_readings.every(isValidProbeReading)) {
+         if (data === null || typeof data !== 'object' || !Array.isArray(data.probe_readings) ||
+             !data.probe_readings.every(isValidProbeReading)) {
             throw new Error('Invalid data structure')
          }
+
+         // Histories can be empty or arrive with timestamps out of order.
+         // Work on a sorted copy so chart bounds and line segments stay sane.
+         const readings = data.probe_readings.slice().sort((a, b) => a.ts - b.ts)
 
          // Disconnect from server
          WS.disconnect();
 
-         resetChartData(data.probe_readings)
-         for (const reading of data.probe_readings) {
+         resetChartData(readings)
+         for (const reading of readings) {
             appendChartData(reading);
          }
+         renderChart(0)
       }).catch((ex) => {
-         console.log('Error parsing saved data file "' + e.target.files[0].name + '": ' + ex.message)
+         console.log('Error parsing saved data file "' + file.name + '": ' + ex.message)
          renderToastInvalidData();
+         e.target.value = ''
       })
    });
 
