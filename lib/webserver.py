@@ -197,12 +197,12 @@ class WebServer:
             }
             await wsock.send_json(payload)
 
-            readings_since = self._ibbq.probe_readings_since
+            history_generation = self._ibbq.history_generation
             full_history = True
             while True:
                 change_generation = self._ibbq.change_generation
-                if self._ibbq.probe_readings_since > readings_since:
-                    readings_since = self._ibbq.probe_readings_since
+                if self._ibbq.history_generation != history_generation:
+                    history_generation = self._ibbq.history_generation
                     full_history = True
 
                 if self._ibbq.unit != client_unit:
@@ -237,7 +237,6 @@ class WebServer:
                             "probes": [],
                         }],
                     })
-                    await wsock.send_json(payload)
                 else:
                     payload.update({
                         "probe_readings": [
@@ -250,8 +249,9 @@ class WebServer:
                             )
                         ],
                     })
-                    full_history = False
-                    await wsock.send_json(payload)
+
+                await wsock.send_json(payload)
+                full_history = False
 
                 recv_task = asyncio.create_task(wsock.receive())
                 update_task = asyncio.create_task(

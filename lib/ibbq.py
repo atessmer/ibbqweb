@@ -52,6 +52,7 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         self._client = None
         self._change_event = asyncio.Event()
         self._change_generation = 0
+        self._history_generation = 0
 
     async def __aenter__(self):
         return self
@@ -93,10 +94,8 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
         return list(self._readings)
 
     @property
-    def probe_readings_since(self):
-        if len(self._readings):
-            return self._readings[0]['timestamp'].timestamp()
-        return 0.0
+    def history_generation(self):
+        return self._history_generation
 
     @property
     def target_temps(self):
@@ -325,6 +324,7 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
 
     def clear_history(self):
         self._readings.clear()
+        self._history_generation += 1
         self._notify_change()
 
     @staticmethod
