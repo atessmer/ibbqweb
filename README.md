@@ -53,6 +53,22 @@ sudo -u ibbqweb ./ibbqweb.py
 
 ## Recommended
 
+### JavaScript tests
+
+Run the browser JavaScript unit tests with Node.js 18 or newer:
+
+```
+npm test
+```
+
+### Python tests
+
+Run the Python unit tests:
+
+```
+python3 -m unittest discover -s tests/py
+```
+
 ### git-hooks
 ```
 git config --local core.hooksPath .githooks/

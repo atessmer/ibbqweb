@@ -15,7 +15,10 @@ const create = (name, value, days=null) => {
 const read = (name) => {
    const cookies = document.cookie.split(";");
    for (const cookie of cookies) {
-      const [cookie_name, cookie_value] = cookie.trim().split("=");
+      const separator = cookie.indexOf("=");
+      if (separator < 0) continue;
+      const cookie_name = cookie.slice(0, separator).trim();
+      const cookie_value = cookie.slice(separator + 1);
       if (cookie_name == name) {
          return cookie_value;
       }
@@ -24,7 +27,7 @@ const read = (name) => {
 }
 
 const erase = (name) => {
-   createCookie(name, "", -1);
+   create(name, "", -1);
 }
 
 export {

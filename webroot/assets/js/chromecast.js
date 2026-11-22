@@ -84,8 +84,8 @@ const initCastReceiver = () => {
       window.location.href = event.data.url;
    });
 
-   for (type in [cast.framework.system.EventType.SENDER_CONNECTED,
-                 cast.framework.system.EventType.SENDER_DISCONNECTED]) {
+   for (const type of [cast.framework.system.EventType.SENDER_CONNECTED,
+                       cast.framework.system.EventType.SENDER_DISCONNECTED]) {
       context.addEventListener(type, (event) => {
          const senders = context.getSenders();
          context.sendCustomMessage(NAMESPACE, undefined, {

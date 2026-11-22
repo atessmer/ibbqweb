@@ -25,6 +25,16 @@ const MAX_SAVED_DATA_BYTES = 10 * 1024 * 1024
 const CtoF = (temp) => (temp * 9 / 5) + 32;
 const FtoC = (temp) => (temp - 32) * 5 / 9;
 
+const isValidProbeReading = (r) => {
+   return r !== null && typeof r === 'object' &&
+      Number.isSafeInteger(r.ts) && Math.abs(r.ts) <= 8.64e15 &&
+      Array.isArray(r.probes) && r.probes.length <= 4 &&
+      r.probes.every((p) => p === null ||
+         (typeof p === 'number' && Number.isFinite(p) && p >= 0 && p <= 6553.5))
+}
+
+const normalizeProbeReadings = (readings) => readings.slice().sort((a, b) => a.ts - b.ts)
+
 const isUnitC = () => document.getElementById('ibbq-unit-celcius').checked
 const isUnitF = () => !isUnitC()
 const setUnit = (celsius) => {
@@ -702,14 +712,6 @@ const initFormFields = () => {
       file.text().then((text) => {
          const data = JSON.parse(text)
 
-         const isValidProbeReading = (r) => {
-            return r !== null && typeof r === 'object' &&
-               Number.isSafeInteger(r.ts) && Math.abs(r.ts) <= 8.64e15 &&
-               Array.isArray(r.probes) && r.probes.length <= 4 &&
-               r.probes.every((p) => p === null ||
-                  (typeof p === 'number' && Number.isFinite(p) && p >= 0 && p <= 6553.5))
-         }
-
          if (data === null || typeof data !== 'object' || !Array.isArray(data.probe_readings) ||
              !data.probe_readings.every(isValidProbeReading)) {
             throw new Error('Invalid data structure')
@@ -717,7 +719,7 @@ const initFormFields = () => {
 
          // Histories can be empty or arrive with timestamps out of order.
          // Work on a sorted copy so chart bounds and line segments stay sane.
-         const readings = data.probe_readings.slice().sort((a, b) => a.ts - b.ts)
+         const readings = normalizeProbeReadings(data.probe_readings)
 
          // Disconnect from server
          WS.disconnect();

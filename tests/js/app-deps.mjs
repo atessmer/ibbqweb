@@ -1,0 +1,16 @@
+export const init = () => {};
+export const start = () => {};
+export const stop = () => {};
+export const initCastApi = () => {};
+export const isConnected = () => false;
+export const setUnit = () => false;
+export const clearHistory = () => false;
+export const powerOff = () => false;
+export const silenceAlarm = () => false;
+export const setProbeTargetTemp = () => false;
+export const clearProbeTargetTemp = () => false;
+export const renderToast = () => ({ toast: {}, element: {} });
+export const renderModal = () => ({ modal: {}, element: {} });
+export const isCastReceiver = () => false;
+export const Chart = class { constructor() {} };
+export default { Chart, formatDate: () => '' };
