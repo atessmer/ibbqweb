@@ -8,7 +8,8 @@ globalThis.document = {
 globalThis.window = {};
 Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {} });
 await import('../../webroot/assets/js/app.js');
-const { wsOnMessage, validateSavedProbeReadings, probeColorForIndex } = await import('../../webroot/assets/js/app.js');
+const { wsOnMessage, validateSavedProbeReadings, probeColorForIndex,
+  validateProbeTargetTemps, isStateUpdate } = await import('../../webroot/assets/js/app.js');
 
 test('app entrypoint waits for document completion and exposes Cast callback', () => {
   assert.equal(typeof listeners.readystatechange, 'function');
@@ -60,5 +61,42 @@ test('rejects malformed saved readings, inconsistent probes, invalid timestamps,
   ];
   for (const readings of invalidHistories) {
     assert.throws(() => validateSavedProbeReadings(readings), /Invalid data structure/);
+  }
+});
+
+test('validates user temperature limits and min/max relationships', () => {
+  assert.deepEqual(validateProbeTargetTemps('custom.temp', null, 32),
+    { valid: true, preset: true, min: true, max: true });
+  assert.deepEqual(validateProbeTargetTemps('custom.range', 32, 572),
+    { valid: true, preset: true, min: true, max: true });
+  for (const [preset, min, max] of [
+    ['custom.temp', null, 31], ['custom.temp', null, 573],
+    ['custom.range', 100, 100], ['custom.range', 101, 100],
+    ['custom.range', 31, 100], ['custom.range', 100, 573],
+    ['custom.range', null, 100], ['custom.range', 100, null],
+  ]) {
+    assert.equal(validateProbeTargetTemps(preset, min, max).valid, false, `${preset}: ${min}..${max}`);
+  }
+  assert.deepEqual(validateProbeTargetTemps('custom.range', null, 100),
+    { valid: false, preset: true, min: false, max: true });
+  assert.deepEqual(validateProbeTargetTemps('', 100, 200),
+    { valid: false, preset: false, min: true, max: true });
+});
+
+test('requires complete server updates and accepts only valid battery levels', () => {
+  const update = {
+    connected: false, battery_level: null, full_history: false,
+    target_temps: {}, target_temp_alert: false, probe_readings: [],
+  };
+  assert.equal(isStateUpdate(update), true);
+  assert.equal(isStateUpdate({ ...update, battery_level: 0 }), true);
+  assert.equal(isStateUpdate({ ...update, battery_level: 0xffff }), true);
+  for (const battery_level of [-1, 0.5, 65536, Infinity, '50', undefined]) {
+    assert.equal(isStateUpdate({ ...update, battery_level }), false, `${battery_level}`);
+  }
+  for (const required of ['connected', 'full_history', 'target_temp_alert', 'target_temps', 'probe_readings']) {
+    const incomplete = { ...update };
+    delete incomplete[required];
+    assert.equal(isStateUpdate(incomplete), false, required);
   }
 });

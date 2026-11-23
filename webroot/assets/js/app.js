@@ -26,6 +26,35 @@ const MAX_SAVED_DATA_BYTES = 10 * 1024 * 1024
 const CtoF = (temp) => (temp * 9 / 5) + 32;
 const FtoC = (temp) => (temp - 32) * 5 / 9;
 
+const validateProbeTargetTemps = (preset, min, max) => {
+   const result = {
+      valid: true,
+      preset: true,
+      min: true,
+      max: true
+   };
+
+   if (preset === '') {
+      result.preset = false;
+   }
+
+   result.min = min === null || (Number.isInteger(min) && min >= 32 && min <= 572);
+   result.max = max === null || (Number.isInteger(max) && max >= 32 && max <= 572);
+   if (preset === 'custom.temp') {
+      result.min = result.min && min === null;
+   }
+   if (preset === 'custom.range' && (min === null || max === null)) {
+      result.min = min !== null;
+      result.max = max !== null;
+   }
+   if (min !== null && max !== null && min >= max) {
+      result.min = false;
+      result.max = false;
+   }
+   result.valid = result.preset && result.min && result.max;
+   return result;
+};
+
 const isValidProbeReading = (r) => {
    return r !== null && typeof r === 'object' && !Array.isArray(r) &&
       Number.isSafeInteger(r.ts) && Math.abs(r.ts) <= 8.64e15 &&
@@ -227,6 +256,14 @@ const initProbeSettingsModal = () => {
 
             const max = parseIntValue(tempMaxEl);
             valid &= max.valid;
+
+            if (valid) {
+               const validations = validateProbeTargetTemps(preset, min, max);
+               presetEl.classList.toggle('is-invalid', !validations.preset);
+               tempMinEl.classList.toggle('is-invalid', !validations.min);
+               tempMaxEl.classList.toggle('is-invalid', !validations.max);
+               valid = validations.valid;
+            }
 
             if (!valid) {
                return;
@@ -437,12 +474,16 @@ const wsOnClose = (e) => {
 };
 
 const isFiniteNumber = (value) => typeof value === "number" && Number.isFinite(value);
+const isBatteryLevel = (value) => {
+   return value === null ||
+          (Number.isInteger(value) && value >= 0 && value <= 0xffff);
+};
 
 const isStateUpdate = (data) => {
    if (typeof data.connected !== "boolean" ||
        typeof data.full_history !== "boolean" ||
        typeof data.target_temp_alert !== "boolean" ||
-       !(data.battery_level === null || isFiniteNumber(data.battery_level)) ||
+       !isBatteryLevel(data.battery_level) ||
        !Array.isArray(data.probe_readings) ||
        data.probe_readings.some(reading =>
           !reading || typeof reading !== "object" ||
@@ -454,7 +495,7 @@ const isStateUpdate = (data) => {
    }
 
    return Object.values(data.target_temps).every(target =>
-      target && typeof target === "object" &&
+      target && typeof target === "object" && !Array.isArray(target) &&
       (target.preset === null || typeof target.preset === "string") &&
       (target.min_temp === null || isFiniteNumber(target.min_temp)) &&
       (target.max_temp === null || isFiniteNumber(target.max_temp)));
@@ -562,7 +603,7 @@ const wsOnMessage = (e) => {
    }
 }
 
-export { wsOnMessage, validateSavedProbeReadings };
+export { wsOnMessage, validateSavedProbeReadings, validateProbeTargetTemps, isStateUpdate };
 
 const requestWakeLock = async () => {
    if (document.visibilityState != "visible") {
