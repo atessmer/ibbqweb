@@ -26,10 +26,10 @@ const read = (name) => {
    for (const cookie of cookies) {
       const separator = cookie.indexOf("=");
       if (separator < 0) continue;
-      const cookie_name = decode(cookie.slice(0, separator).trim());
-      const cookie_value = cookie.slice(separator + 1);
-      if (cookie_name == name) {
-         return decode(cookie_value);
+      const cookieName = decode(cookie.slice(0, separator).trim());
+      const cookieValue = cookie.slice(separator + 1);
+      if (cookieName === name) {
+         return decode(cookieValue);
       }
    }
    return null;

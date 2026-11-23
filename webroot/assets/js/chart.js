@@ -215,11 +215,11 @@ const renderChart = (minRenderIntervalMs=50) => {
    chart.render()
 }
 
-const resetChartData = (probe_readings) => {
+const resetChartData = (probeReadings) => {
    chart.options.data = []
    chart.options.axisY.stripLines = []
    let xMin = new Date().getTime()
-   for (const reading of probe_readings) {
+   for (const reading of probeReadings) {
       if (Array.isArray(reading.probes) && reading.probes.some(temp => temp != null)) {
          xMin = reading.ts
          break

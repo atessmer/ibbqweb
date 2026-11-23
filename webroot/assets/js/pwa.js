@@ -49,7 +49,7 @@ const init = () => {
             return;
          }
 
-         if (e.target.dataset.ibbqAction == "install") {
+         if (e.target.dataset.ibbqAction === "install") {
             // Claim before awaiting anything so rapid/double clicks cannot
             // invoke prompt() more than once for the same event.
             install.status = 'prompting';
@@ -68,7 +68,7 @@ const init = () => {
                   pendingInstall = null;
                }
             }
-         } else if (e.target.dataset.ibbqAction == "decline") {
+         } else if (e.target.dataset.ibbqAction === "decline") {
             Cookie.create('pwaDeclined', '1', 365);
             install.status = 'consumed';
             pendingInstall = null;

@@ -46,7 +46,7 @@ const setUnit = (celsius) => {
 const tempFromC = (temp) => temp != null && isUnitF() ? CtoF(temp) : temp
 const tempToC = (temp) => temp != null && isUnitF() ? FtoC(temp) : temp
 
-// TODO: support Celcius presets too
+// TODO: support Celsius presets too
 const updatePreset = () => {
    const probeTempMin = document.getElementById('probe-temp-min')
    const probeTempMax = document.getElementById('probe-temp-max')
@@ -57,11 +57,11 @@ const updatePreset = () => {
       probeTempMin.value = null
       probeTempMax.disabled = true
       probeTempMax.value = null
-   } else if (preset.value == 'custom.temp') {
+   } else if (preset.value === 'custom.temp') {
       probeTempMin.disabled = true
       probeTempMin.value = null
       probeTempMax.disabled = false
-   } else if (preset.value == 'custom.range') {
+   } else if (preset.value === 'custom.range') {
       probeTempMin.disabled = false
       probeTempMax.disabled = false
    } else {
@@ -159,13 +159,13 @@ const initProbeSettingsModal = () => {
             return
          }
 
-         if (e.target.dataset.ibbqAction == "clear") {
+         if (e.target.dataset.ibbqAction === "clear") {
             obj.element.querySelectorAll('.is-invalid').forEach((el) => {
                el.classList.remove('is-invalid');
             });
 
             WS.clearProbeTargetTemp(probe);
-         } else if (e.target.dataset.ibbqAction == "save") {
+         } else if (e.target.dataset.ibbqAction === "save") {
             const parseIntValue = (el) => {
                const rawValue = el.value.trim();
                if (rawValue === '') {
@@ -189,7 +189,7 @@ const initProbeSettingsModal = () => {
             let valid = true;
 
             const preset = presetEl.value;
-            if (preset == '') {
+            if (preset === '') {
                presetEl.classList.add('is-invalid');
                valid = false;
             } else {

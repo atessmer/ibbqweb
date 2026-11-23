@@ -65,7 +65,7 @@ const wsOnMessage = (e) => {
       return;
    }
 
-   if (data.cmd == "state_update") {
+   if (data.cmd === "state_update") {
       if (!isStateUpdate(data)) {
          console.error("Ignoring invalid state_update payload");
          return;
@@ -98,19 +98,19 @@ const wsOnMessage = (e) => {
             const targetTemp = data.target_temps[i]
 
             if (targetTemp !== undefined) {
-               if (targetTemp.preset == null) {
+               if (targetTemp.preset === null) {
                   delete probeContainer.dataset.ibbqPreset;
                } else {
                   probeContainer.dataset.ibbqPreset = targetTemp.preset;
                }
 
-               if (targetTemp.min_temp == null) {
+               if (targetTemp.min_temp === null) {
                   delete probeContainer.dataset.ibbqTempMin;
                } else {
                   probeContainer.dataset.ibbqTempMin = ProbeSettings.tempFromC(targetTemp.min_temp);
                }
 
-               if (targetTemp.max_temp == null) {
+               if (targetTemp.max_temp === null) {
                   delete probeContainer.dataset.ibbqTempMax;
                } else {
                   probeContainer.dataset.ibbqTempMax = ProbeSettings.tempFromC(targetTemp.max_temp);
@@ -135,12 +135,12 @@ const wsOnMessage = (e) => {
             Alert.stop();
          }
       }
-   } else if (data.cmd == "unit_update") {
+   } else if (data.cmd === "unit_update") {
       if (data.unit !== "C" && data.unit !== "F") {
          console.error("Ignoring invalid unit_update payload");
          return;
       }
-      ProbeSettings.setUnit(data.unit == "C");
+      ProbeSettings.setUnit(data.unit === "C");
 
       // Update chart
       Chart.updateTemperatureUnit(ProbeSettings.tempFromC)
@@ -239,7 +239,7 @@ const renderBatteryLevel = (level) => {
    if (level == null) {
       el.textContent = "--"
       el.classList.add('bi-battery')
-   } else if (level == 0xffff) {
+   } else if (level === 0xffff) {
       el.textContent = "--"
       el.classList.add('bi-battery-charging', 'text-warning')
    } else {
@@ -271,9 +271,9 @@ const renderConnectionState = (state) => {
       'text-warning',
    );
 
-   if (state == ConnectionState.CONNECTED) {
+   if (state === ConnectionState.CONNECTED) {
       el.classList.add('bi-wifi');
-   } else if (state == ConnectionState.DISCONNECTED) {
+   } else if (state === ConnectionState.DISCONNECTED) {
       el.classList.add('bi-wifi-off', 'text-danger');
    } else {
       el.classList.add('bi-exclamation-triangle-fill', 'text-warning');
@@ -415,7 +415,7 @@ const registerServiceWorker = async () => {
 };
 registerServiceWorker();
 
-const _urlTabChange = () => {
+const updateUrlTab = () => {
    const hash = window.location.hash;
    if (hash) {
       const triggerEl = document.querySelector(`[data-bs-target="${hash}"]`);
@@ -427,10 +427,10 @@ const _urlTabChange = () => {
 };
 
 const initUrlTab = () => {
-   _urlTabChange();
+   updateUrlTab();
 
    window.addEventListener('hashchange', (event) => {
-      _urlTabChange();
+      updateUrlTab();
    });
 };
 

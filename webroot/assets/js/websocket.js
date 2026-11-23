@@ -11,8 +11,8 @@ let offlineMode = true;
 let serverDisconnectedToast = null;
 let offlineModeToast = null;
 
-const isConnected = () => ws?.readyState == 1;
-const protocol = window.location.protocol == "https:" ? "wss://" : "ws://";
+const isConnected = () => ws?.readyState === WebSocket.OPEN;
+const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
 
 const renderToastServerDisconnected = () => {
    const html = `

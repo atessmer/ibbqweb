@@ -21,7 +21,7 @@ const initCastSender = () => {
       autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
    });
 
-   let context = cast.framework.CastContext.getInstance();
+   const context = cast.framework.CastContext.getInstance();
    context.addEventListener(
       cast.framework.CastContextEventType.SESSION_STATE_CHANGED,
       (event) => {
@@ -47,7 +47,7 @@ const initCastSender = () => {
 };
 
 const castCurrentTab = () => {
-   let session = cast.framework.CastContext.getInstance().getCurrentSession();
+   const session = cast.framework.CastContext.getInstance().getCurrentSession();
    if (session == null) {
       return;
    }

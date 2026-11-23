@@ -36,7 +36,7 @@ const initPlayback = () => {
                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                </div>
                <div class="modal-body">
-                 This page plaus audio notifications when a temperature probe target is set and exceeded.
+                 This page plays audio notifications when a temperature probe target is set and exceeded.
                </div>
              </div>
            </div>
