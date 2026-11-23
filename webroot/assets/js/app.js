@@ -26,14 +26,37 @@ const CtoF = (temp) => (temp * 9 / 5) + 32;
 const FtoC = (temp) => (temp - 32) * 5 / 9;
 
 const isValidProbeReading = (r) => {
-   return r !== null && typeof r === 'object' &&
+   return r !== null && typeof r === 'object' && !Array.isArray(r) &&
       Number.isSafeInteger(r.ts) && Math.abs(r.ts) <= 8.64e15 &&
-      Array.isArray(r.probes) && r.probes.length <= 4 &&
+      Array.isArray(r.probes) && r.probes.length >= 1 && r.probes.length <= 4 &&
       r.probes.every((p) => p === null ||
          (typeof p === 'number' && Number.isFinite(p) && p >= 0 && p <= 6553.5))
 }
 
 const normalizeProbeReadings = (readings) => readings.slice().sort((a, b) => a.ts - b.ts)
+
+const validateSavedProbeReadings = (readings) => {
+   if (!Array.isArray(readings) || !readings.every(isValidProbeReading)) {
+      throw new Error('Invalid data structure')
+   }
+
+   if (readings.length === 0) {
+      return []
+   }
+
+   const probeCount = readings[0].probes.length
+   const timestamps = new Set()
+   for (const reading of readings) {
+      if (reading.probes.length !== probeCount || timestamps.has(reading.ts)) {
+         throw new Error('Invalid data structure')
+      }
+      timestamps.add(reading.ts)
+   }
+
+   // Files may contain readings in arrival order; normalize them after checking
+   // that timestamps are unique so sorting cannot hide ambiguous samples.
+   return normalizeProbeReadings(readings)
+}
 
 const isUnitC = () => document.getElementById('ibbq-unit-celcius').checked
 const isUnitF = () => !isUnitC()
@@ -538,7 +561,7 @@ const wsOnMessage = (e) => {
    }
 }
 
-export { wsOnMessage };
+export { wsOnMessage, validateSavedProbeReadings };
 
 const requestWakeLock = async () => {
    if (document.visibilityState != "visible") {
@@ -758,14 +781,12 @@ const initFormFields = () => {
       file.text().then((text) => {
          const data = JSON.parse(text)
 
-         if (data === null || typeof data !== 'object' || !Array.isArray(data.probe_readings) ||
-             !data.probe_readings.every(isValidProbeReading)) {
+         if (data === null || typeof data !== 'object' || Array.isArray(data)) {
             throw new Error('Invalid data structure')
          }
 
-         // Histories can be empty or arrive with timestamps out of order.
-         // Work on a sorted copy so chart bounds and line segments stay sane.
-         const readings = normalizeProbeReadings(data.probe_readings)
+         // Validate the complete file before disconnecting or changing chart data.
+         const readings = validateSavedProbeReadings(data.probe_readings)
 
          // Disconnect from server
          WS.disconnect();
