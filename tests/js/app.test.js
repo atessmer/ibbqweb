@@ -8,13 +8,20 @@ globalThis.document = {
 globalThis.window = {};
 Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {} });
 await import('../../webroot/assets/js/app.js');
-const { wsOnMessage, validateSavedProbeReadings } = await import('../../webroot/assets/js/app.js');
+const { wsOnMessage, validateSavedProbeReadings, probeColorForIndex } = await import('../../webroot/assets/js/app.js');
 
 test('app entrypoint waits for document completion and exposes Cast callback', () => {
   assert.equal(typeof listeners.readystatechange, 'function');
   assert.equal(typeof window.__onGCastApiAvailable, 'function');
   listeners.readystatechange({});
   assert.equal(typeof listeners.readystatechange, 'function');
+});
+
+test('probe colors cycle through the palette when the index exceeds it', () => {
+  assert.equal(probeColorForIndex(0), '#357bcc');
+  assert.equal(probeColorForIndex(3), '#bdb320');
+  assert.equal(probeColorForIndex(4), '#357bcc');
+  assert.equal(probeColorForIndex(8), '#357bcc');
 });
 
 test('ignores malformed JSON and invalid WebSocket update payloads', () => {

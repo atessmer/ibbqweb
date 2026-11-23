@@ -18,6 +18,7 @@ const probeColors = [
   "#d4872a",
   "#bdb320",
 ]
+export const probeColorForIndex = (index) => probeColors[index % probeColors.length]
 const STRIPLINE_TEMP_OPACITY = 0.5
 const STRIPLINE_RANGE_OPACITY = 0.15
 const MAX_SAVED_DATA_BYTES = 10 * 1024 * 1024
@@ -329,7 +330,7 @@ const appendChartData = (probeReading) => {
          tempC === null ? '--' : tempFromC(tempC) + "&deg;"
 
       if (chart.options.data.length < i + 1) {
-         const probeColor = i <= probeColors.length ? probeColors[i] : "#000"
+         const probeColor = probeColorForIndex(i)
          chart.options.data.push({
             type: "line",
             markerSize: 0,
