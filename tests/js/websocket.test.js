@@ -7,8 +7,12 @@ class FakeWebSocket {
   static OPEN = 1;
   static CLOSING = 2;
   static CLOSED = 3;
-  constructor(url) { this.url = url; this.readyState = 0; this.sent = []; sockets.push(this); }
-  send(data) { this.sent.push(data); }
+  static throwNext = false;
+  constructor(url) {
+    if (FakeWebSocket.throwNext) { FakeWebSocket.throwNext = false; throw new Error('constructor failed'); }
+    this.url = url; this.readyState = 0; this.sent = []; sockets.push(this);
+  }
+  send(data) { if (this.throwOnSend) throw new Error('send failed'); this.sent.push(data); }
   close() { this.readyState = FakeWebSocket.CLOSED; this.onclose?.({ code: 1000 }); }
 }
 globalThis.WebSocket = FakeWebSocket;
@@ -72,4 +76,56 @@ test('unexpected close notifies callbacks and reconnects; stale socket events ar
   newSocket.onopen({});
   newSocket.onmessage({ data: 'fresh' });
   assert.deepEqual(callbacks, [true, 'open', 'message']);
+});
+
+test('constructor failures retry with bounded backoff and manual connect retries immediately', () => {
+  const delays = [];
+  let pending;
+  globalThis.setTimeout = (callback, delay) => { delays.push(delay); pending = callback; return delays.length; };
+  globalThis.clearTimeout = () => { pending = null; };
+  WS.disconnect();
+  FakeWebSocket.throwNext = true;
+  WS.connect();
+  assert.deepEqual(delays, [1000]);
+  WS.connect();
+  assert.equal(sockets.at(-1).readyState, FakeWebSocket.CONNECTING);
+  assert.equal(pending, null);
+  WS.disconnect();
+});
+
+test('send errors are contained and disconnect cancels pending retries', () => {
+  let pending;
+  globalThis.setTimeout = (callback, delay) => { pending = callback; return delay; };
+  globalThis.clearTimeout = () => { pending = null; };
+  WS.disconnect();
+  WS.connect();
+  const socket = sockets.at(-1);
+  socket.readyState = FakeWebSocket.OPEN;
+  socket.throwOnSend = true;
+  assert.equal(WS.setUnit(true), false);
+  assert.equal(typeof pending, 'function');
+  WS.disconnect();
+  assert.equal(pending, null);
+});
+
+test('repeated closes use capped exponential retry delays and reset on connect', () => {
+  const delays = [];
+  let pending;
+  globalThis.setTimeout = (callback, delay) => { delays.push(delay); pending = callback; return delays.length; };
+  globalThis.clearTimeout = () => { pending = null; };
+  WS.disconnect();
+  WS.connect();
+  for (let i = 0; i < 7; i++) {
+    const socket = sockets.at(-1);
+    socket.readyState = FakeWebSocket.CLOSED;
+    socket.onclose({ code: 1006 });
+    pending();
+  }
+  assert.deepEqual(delays, [1000, 2000, 4000, 8000, 16000, 30000, 30000]);
+  WS.connect();
+  const socket = sockets.at(-1);
+  socket.readyState = FakeWebSocket.CLOSED;
+  socket.onclose({ code: 1006 });
+  assert.equal(delays.at(-1), 1000);
+  WS.disconnect();
 });

@@ -2,6 +2,8 @@ import * as Utils from './utils.js';
 
 let ws = null;
 let reconnectTimeoutId = null;
+let reconnectDelay = 1000;
+const maxReconnectDelay = 30000;
 
 let opts = {};
 let offlineMode = true;
@@ -57,7 +59,14 @@ const _connect = () => {
       return;
    }
 
-   const socket = new WebSocket(protocol + window.location.host + "/ws");
+   let socket;
+   try {
+      socket = new WebSocket(protocol + window.location.host + "/ws");
+   } catch (error) {
+      console.warn("websocket construction failed", error);
+      scheduleReconnect();
+      return;
+   }
    ws = socket;
 
    socket.onopen = (e) => {
@@ -66,6 +75,7 @@ const _connect = () => {
          clearTimeout(reconnectTimeoutId);
          reconnectTimeoutId = null;
       }
+      reconnectDelay = 1000;
       if (serverDisconnectedToast || offlineModeToast) {
          serverDisconnectedToast && serverDisconnectedToast.hide();
          serverDisconnectedToast = null;
@@ -94,12 +104,7 @@ const _connect = () => {
             serverDisconnectedToast = renderToastServerDisconnected().toast;
             e.isDisconnect = true;
          }
-         if (reconnectTimeoutId === null) {
-            reconnectTimeoutId = setTimeout(() => {
-               reconnectTimeoutId = null;
-               _connect();
-            }, 1000);
-         }
+         scheduleReconnect();
       }
 
       if (typeof opts.onclose === 'function') {
@@ -115,6 +120,19 @@ const _connect = () => {
    };
 };
 
+const scheduleReconnect = () => {
+   if (offlineMode || reconnectTimeoutId !== null) {
+      return;
+   }
+
+   const delay = reconnectDelay;
+   reconnectDelay = Math.min(reconnectDelay * 2, maxReconnectDelay);
+   reconnectTimeoutId = setTimeout(() => {
+      reconnectTimeoutId = null;
+      _connect();
+   }, delay);
+};
+
 const init = (options={}) => {
    opts = options;
    connect();
@@ -126,6 +144,7 @@ const connect = () => {
       clearTimeout(reconnectTimeoutId);
       reconnectTimeoutId = null;
    }
+   reconnectDelay = 1000;
    _connect();
 };
 
@@ -135,6 +154,7 @@ const disconnect = () => {
       clearTimeout(reconnectTimeoutId);
       reconnectTimeoutId = null;
    }
+   reconnectDelay = 1000;
    if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
       ws.close();
    }
@@ -145,8 +165,18 @@ const send = (payload) => {
       return false;
    }
 
-   ws.send(JSON.stringify(payload));
-   return true;
+   try {
+      ws.send(JSON.stringify(payload));
+      return true;
+   } catch (error) {
+      console.warn("websocket send failed", error);
+      try {
+         ws.close();
+      } catch (closeError) {
+         // A failed close must not escape from a command send.
+      }
+      return false;
+   }
 }
 
 const setProbeTargetTemp = (probe, preset, minC, maxC) => {
