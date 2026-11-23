@@ -5,6 +5,7 @@ import * as Utils from './utils.js';
 
 const APP_ID = '5CB45E5A';
 const NAMESPACE = 'urn:x-cast:com.url.cast';
+const APP_PATHS = new Set(['#probes', '#graph']);
 
 const initCastApi = () => {
    if (Utils.isCastReceiver()) {
@@ -56,9 +57,15 @@ const castCurrentTab = () => {
     * This allows us to use the full receiver framework to set options as needed
     * and implement our own sender/receiver messaging.
     */
+   const activeTab = document.querySelector('#pageTab .active');
+   const path = activeTab?.dataset?.['bsTarget'];
+   if (!APP_PATHS.has(path)) {
+      return;
+   }
+
    session.sendMessage(NAMESPACE, {
       type: 'loc', // iframe | loc
-      url: window.location.origin + document.querySelector('#pageTab .active').dataset['bsTarget'],
+      url: window.location.origin + path,
    });
 };
 
@@ -75,13 +82,17 @@ const initCastReceiver = () => {
    context.start(options);
 
    context.addCustomMessageListener(NAMESPACE, (event) => {
+      const target = getAllowedReceiverUrl(event.data?.url);
+      if (target === null) {
+         return;
+      }
       context.sendCustomMessage(NAMESPACE, undefined, {
          type: 'Location',
          sender: event.senderId,
-         url: event.data.url,
+         url: target.href,
          all_senders: context.getSenders().map(s => s.id),
       });
-      window.location.href = event.data.url;
+      window.location.href = target.href;
    });
 
    for (const type of [cast.framework.system.EventType.SENDER_CONNECTED,
@@ -101,6 +112,26 @@ const initCastReceiver = () => {
    document.addEventListener('shown.bs.tab', (event) => {
       setReceiverStatus();
    });
+};
+
+const getAllowedReceiverUrl = (value) => {
+   if (typeof value !== 'string') {
+      return null;
+   }
+   try {
+      const target = new URL(value);
+      if (target.origin !== window.location.origin ||
+          target.pathname !== '/' ||
+          target.search !== '' ||
+          target.username !== '' ||
+          target.password !== '' ||
+          !APP_PATHS.has(target.hash)) {
+         return null;
+      }
+      return target;
+   } catch {
+      return null;
+   }
 };
 
 const setReceiverStatus = () => {

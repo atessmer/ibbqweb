@@ -43,3 +43,43 @@ test('tab changes send a URL only when a session exists', () => {
   listeners['shown.bs.tab']();
   assert.equal(sentMessages.length, 2);
 });
+
+test('sender ignores missing or unsupported active tabs', () => {
+  context.getCurrentSession = () => currentSession;
+  document.querySelector = () => null;
+  listeners['shown.bs.tab']();
+  document.querySelector = () => ({ dataset: { bsTarget: '#other' } });
+  listeners['shown.bs.tab']();
+  assert.equal(sentMessages.length, 2);
+});
+
+test('receiver rejects navigation outside the same origin and app tabs', async () => {
+  let messageHandler;
+  const receiverMessages = [];
+  const receiverContext = {
+    start() {},
+    addCustomMessageListener(namespace, handler) { messageHandler = handler; },
+    sendCustomMessage(namespace, sender, data) { receiverMessages.push(data); },
+    getSenders() { return []; },
+    addEventListener() {},
+    setApplicationState() {},
+  };
+  cast.framework.CastReceiverOptions = class {};
+  cast.framework.CastReceiverContext = { getInstance: () => receiverContext };
+  cast.framework.system = { MessageType: { JSON: 'json' }, EventType: {} };
+  document.body = { classList: { add() {} } };
+  document.querySelector = () => ({ textContent: 'Probes' });
+  globalThis.navigator = { userAgent: 'CrKey' };
+  const Receiver = await import('../../webroot/assets/js/chromecast.js?receiver');
+  Receiver.initCastApi();
+
+  messageHandler({ senderId: 'sender', data: { url: 'https://attacker.example/#graph' } });
+  assert.equal(receiverMessages.length, 0);
+  assert.equal(window.location.href, undefined);
+
+  messageHandler({ senderId: 'sender', data: { url: 'https://grill.example/#graph' } });
+  assert.equal(receiverMessages.length, 1);
+  assert.equal(receiverMessages[0].url, 'https://grill.example/#graph');
+  assert.equal(window.location.href, 'https://grill.example/#graph');
+  delete globalThis.navigator;
+});
