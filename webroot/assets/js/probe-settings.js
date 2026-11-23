@@ -45,8 +45,9 @@ const setUnit = (celsius) => {
 
 const tempFromC = (temp) => temp != null && isUnitF() ? CtoF(temp) : temp
 const tempToC = (temp) => temp != null && isUnitF() ? FtoC(temp) : temp
+const presetTempFromF = (temp, celsius = isUnitC()) => temp == null ? null :
+   (celsius ? Math.round(FtoC(Number(temp))) : Number(temp));
 
-// TODO: support Celsius presets too
 const updatePreset = () => {
    const probeTempMin = document.getElementById('probe-temp-min')
    const probeTempMax = document.getElementById('probe-temp-max')
@@ -66,9 +67,9 @@ const updatePreset = () => {
       probeTempMax.disabled = false
    } else {
       probeTempMin.disabled = true
-      probeTempMin.value = preset.dataset.ibbqTargetMin || null
+      probeTempMin.value = presetTempFromF(preset.dataset.ibbqTargetMin)
       probeTempMax.disabled = true
-      probeTempMax.value = preset.dataset.ibbqTargetMax
+      probeTempMax.value = presetTempFromF(preset.dataset.ibbqTargetMax)
    }
 }
 
@@ -129,6 +130,14 @@ const initProbeSettingsModal = () => {
    const settingsIdxEl = document.getElementById('probe-settings-index');
    const tempMinEl = document.getElementById('probe-temp-min');
    const tempMaxEl = document.getElementById('probe-temp-max');
+   const updateUnitLabels = () => {
+      const unit = isUnitC() ? 'C' : 'F';
+      obj.element.querySelector('label[for="probe-temp-min"]').textContent = `Min (°${unit})`;
+      obj.element.querySelector('label[for="probe-temp-max"]').textContent = `Max (°${unit})`;
+      updatePreset();
+   };
+   document.getElementById('ibbq-unit-celcius').addEventListener('change', updateUnitLabels);
+   updateUnitLabels();
 
    presetEl.addEventListener('change', (e) => {
       updatePreset()
@@ -202,8 +211,10 @@ const initProbeSettingsModal = () => {
             const max = parseIntValue(tempMaxEl);
             valid &= max.valid;
 
+            const minF = min.value === null ? null : (isUnitC() ? CtoF(min.value) : min.value);
+            const maxF = max.value === null ? null : (isUnitC() ? CtoF(max.value) : max.value);
             if (valid) {
-               const validations = validateProbeTargetTemps(preset, min, max);
+               const validations = validateProbeTargetTemps(preset, minF, maxF);
                presetEl.classList.toggle('is-invalid', !validations.preset);
                tempMinEl.classList.toggle('is-invalid', !validations.min);
                tempMaxEl.classList.toggle('is-invalid', !validations.max);
@@ -224,4 +235,4 @@ const initProbeSettingsModal = () => {
 }
 
 
-export { validateProbeTargetTemps, isUnitC, setUnit, tempFromC, tempToC, initProbeSettingsModal };
+export { validateProbeTargetTemps, isUnitC, setUnit, tempFromC, tempToC, presetTempFromF, initProbeSettingsModal };

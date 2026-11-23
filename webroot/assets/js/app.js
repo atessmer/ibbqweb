@@ -18,7 +18,8 @@ const wsOnOpen = (e) => {
 const wsOnClose = (e) => {
    renderConnectionState(ConnectionState.UNKNOWN);
    if (e.isDisconnect) {
-      Chart.renderChart(); // XXX: Why??
+      // Redraw after a disconnect so the graph reflects the final readings.
+      Chart.renderChart();
    }
 };
 

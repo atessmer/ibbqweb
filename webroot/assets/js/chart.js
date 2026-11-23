@@ -289,7 +289,8 @@ const initChart = () => {
    // any incremental changes received when the page becomes visible again
    document.addEventListener("visibilitychange", renderChart);
 
-   // Workaround graph not rendering correct size initially
+   // CanvasJS measures the graph while its tab is hidden; redraw after Bootstrap
+   // reveals the tab so it can use the container's actual dimensions.
    document.querySelector('button[aria-controls="graph"]').addEventListener(
       'shown.bs.tab', (e) => renderChart(0)
    );

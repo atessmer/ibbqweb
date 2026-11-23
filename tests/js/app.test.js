@@ -12,6 +12,7 @@ await import('../../webroot/assets/js/app.js');
 const { wsOnMessage, validateSavedProbeReadings, probeColorForIndex,
   validateProbeTargetTemps, isStateUpdate, requestWakeLock, handleVisibilityChange,
   setDownloadLink } = await import('../../webroot/assets/js/app.js');
+const { presetTempFromF } = await import('../../webroot/assets/js/probe-settings.js');
 
 test('app entrypoint waits for document completion and exposes Cast callback', () => {
   assert.equal(typeof listeners.readystatechange, 'function');
@@ -158,6 +159,13 @@ test('validates user temperature limits and min/max relationships', () => {
     { valid: false, preset: true, min: false, max: true });
   assert.deepEqual(validateProbeTargetTemps('', 100, 200),
     { valid: false, preset: false, min: true, max: true });
+});
+
+test('converts Fahrenheit preset temperatures for Celsius display', () => {
+  assert.equal(presetTempFromF('125', true), 52);
+  assert.equal(presetTempFromF('65', true), 18);
+  assert.equal(presetTempFromF('125', false), 125);
+  assert.equal(presetTempFromF(null, true), null);
 });
 
 test('requires complete server updates and accepts only valid battery levels', () => {
