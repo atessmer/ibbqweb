@@ -1,7 +1,7 @@
 import asyncio
 import datetime
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 from types import SimpleNamespace
 
 try:
@@ -255,6 +255,48 @@ class WebSocketCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(states[1]["probe_readings"], [
             {"ts": int(timestamp.timestamp() * 1000), "probes": [21.0]}
         ])
+
+
+@unittest.skipIf(WebServer is None, "aiohttp and cryptography are required")
+class CertificateRotationTests(unittest.TestCase):
+    def setUp(self):
+        self.ssl_ctx = MagicMock()
+        self.app = {
+            "ssl_ctx": self.ssl_ctx,
+            "tls": {
+                "cert": "/etc/ibbq/cert.pem",
+                "key": "/etc/ibbq/key.pem",
+                "loaded_at": 100,
+                "not_valid_after": 500,
+            },
+        }
+
+    @patch("lib.webserver.os.lstat")
+    def test_does_not_reload_unchanged_certificate(self, lstat):
+        lstat.return_value.st_mtime = 100
+
+        WebServer._reload_certs(self.app)
+
+        self.ssl_ctx.load_cert_chain.assert_not_called()
+        self.assertEqual(self.app["tls"]["loaded_at"], 100)
+        self.assertEqual(self.app["tls"]["not_valid_after"], 500)
+
+    @patch("lib.webserver.now_utc", return_value=250)
+    @patch("lib.webserver.cryptography.x509.load_pem_x509_certificate")
+    @patch("builtins.open", new_callable=mock_open, read_data=b"rotated cert")
+    @patch("lib.webserver.os.lstat")
+    def test_reloads_rotated_certificate_and_refreshes_expiry(
+            self, lstat, _open, load_certificate, _now):
+        lstat.return_value.st_mtime = 200
+        expiry = datetime.datetime(2030, 1, 1, tzinfo=datetime.timezone.utc)
+        load_certificate.return_value.not_valid_after_utc = expiry
+
+        WebServer._reload_certs(self.app)
+
+        self.ssl_ctx.load_cert_chain.assert_called_once_with(
+            "/etc/ibbq/cert.pem", "/etc/ibbq/key.pem")
+        self.assertEqual(self.app["tls"]["loaded_at"], 250)
+        self.assertEqual(self.app["tls"]["not_valid_after"], expiry.timestamp())
 
 
 if __name__ == "__main__":
