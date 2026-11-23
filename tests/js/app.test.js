@@ -3,19 +3,96 @@ import assert from 'node:assert/strict';
 
 const listeners = {};
 globalThis.document = {
+  visibilityState: 'visible',
   addEventListener(type, callback) { listeners[type] = callback; },
 };
-globalThis.window = {};
+globalThis.window = { URL: {}, setTimeout };
 Object.defineProperty(globalThis, 'navigator', { configurable: true, value: {} });
 await import('../../webroot/assets/js/app.js');
 const { wsOnMessage, validateSavedProbeReadings, probeColorForIndex,
-  validateProbeTargetTemps, isStateUpdate } = await import('../../webroot/assets/js/app.js');
+  validateProbeTargetTemps, isStateUpdate, requestWakeLock, handleVisibilityChange,
+  setDownloadLink } = await import('../../webroot/assets/js/app.js');
 
 test('app entrypoint waits for document completion and exposes Cast callback', () => {
   assert.equal(typeof listeners.readystatechange, 'function');
   assert.equal(typeof window.__onGCastApiAvailable, 'function');
   listeners.readystatechange({});
   assert.equal(typeof listeners.readystatechange, 'function');
+});
+
+test('retains one screen wake lock and releases it when the page becomes hidden', async () => {
+  const locks = [];
+  navigator.wakeLock = {
+    async request(type) {
+      assert.equal(type, 'screen');
+      const lock = {
+        released: false,
+        listeners: [],
+        addEventListener(type, listener) { if (type === 'release') this.listeners.push(listener); },
+        async release() {
+          this.released = true;
+          for (const listener of this.listeners) listener();
+        },
+      };
+      locks.push(lock);
+      return lock;
+    },
+  };
+
+  await requestWakeLock();
+  await requestWakeLock();
+  assert.equal(locks.length, 1);
+
+  document.visibilityState = 'hidden';
+  await handleVisibilityChange();
+  assert.equal(locks[0].released, true);
+
+  document.visibilityState = 'visible';
+  await handleVisibilityChange();
+  assert.equal(locks.length, 2);
+  document.visibilityState = 'hidden';
+  await handleVisibilityChange();
+  document.visibilityState = 'visible';
+});
+
+test('releases a wake lock if the page hides while its request is pending', async () => {
+  let resolveRequest;
+  let lock;
+  navigator.wakeLock = { request: () => new Promise((resolve) => { resolveRequest = resolve; }) };
+  document.visibilityState = 'visible';
+  const pending = requestWakeLock();
+  document.visibilityState = 'hidden';
+  await handleVisibilityChange();
+  lock = { released: false, async release() { this.released = true; } };
+  resolveRequest(lock);
+  await pending;
+  assert.equal(lock.released, true);
+  document.visibilityState = 'visible';
+  navigator.wakeLock = undefined;
+});
+
+test('keeps the current download URL valid and revokes it when replaced', () => {
+  const originalCreate = window.URL.createObjectURL;
+  const originalRevoke = window.URL.revokeObjectURL;
+  const created = [];
+  const revoked = [];
+  window.URL.createObjectURL = (blob) => { created.push(blob); return `blob:download-${created.length}`; };
+  window.URL.revokeObjectURL = (url) => revoked.push(url);
+  try {
+    const link = {};
+    const blob = new Blob(['{}'], { type: 'application/json' });
+    setDownloadLink(link, blob);
+    assert.equal(link.href, 'blob:download-1');
+    assert.match(link.download, /^ibbq_.*\.json$/);
+    assert.deepEqual(created, [blob]);
+    assert.deepEqual(revoked, []);
+    setDownloadLink(link, new Blob(['next']));
+    assert.equal(link.href, 'blob:download-2');
+    assert.deepEqual(revoked, ['blob:download-1']);
+  } finally {
+    window.URL.createObjectURL = originalCreate;
+    window.URL.revokeObjectURL = originalRevoke;
+  }
 });
 
 test('probe colors cycle through the palette when the index exceeds it', () => {

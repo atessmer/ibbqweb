@@ -605,19 +605,62 @@ const wsOnMessage = (e) => {
 
 export { wsOnMessage, validateSavedProbeReadings, validateProbeTargetTemps, isStateUpdate };
 
+let screenWakeLock = null;
+let wakeLockRequest = null;
+
 const requestWakeLock = async () => {
-   if (document.visibilityState != "visible") {
+   if (document.visibilityState !== "visible" || !navigator.wakeLock?.request ||
+       screenWakeLock || wakeLockRequest) {
       return;
    }
 
-   try {
-      await navigator.wakeLock.request("screen");
-   } catch (err) {
+   wakeLockRequest = navigator.wakeLock.request("screen").then((lock) => {
+      // The page may have become hidden while the asynchronous request was pending.
+      if (document.visibilityState !== "visible") {
+         return lock.release();
+      }
+      screenWakeLock = lock;
+      lock.addEventListener?.("release", () => {
+         if (screenWakeLock === lock) {
+            screenWakeLock = null;
+         }
+      });
+   }).catch((err) => {
       // the wake lock request fails - usually system related,
       // such being low on battery
       console.log(`${err.name}, ${err.message}`);
+   }).finally(() => {
+      wakeLockRequest = null;
+   });
+   return wakeLockRequest;
+};
+
+const handleVisibilityChange = () => {
+   if (document.visibilityState === "visible") {
+      return requestWakeLock();
+   }
+
+   const lock = screenWakeLock;
+   screenWakeLock = null;
+   if (lock) {
+      lock.release().catch((err) => console.log(`${err.name}, ${err.message}`));
    }
 };
+
+export { requestWakeLock, handleVisibilityChange };
+
+const downloadObjectUrls = new WeakMap();
+const setDownloadLink = (link, blob) => {
+   const previousUrl = downloadObjectUrls.get(link);
+   if (previousUrl) {
+      window.URL.revokeObjectURL(previousUrl);
+   }
+   const objectUrl = window.URL.createObjectURL(blob);
+   downloadObjectUrls.set(link, objectUrl);
+   link.href = objectUrl;
+   link.download = 'ibbq_' + new Date().toJSON().slice(0, -5) + '.json';
+};
+export { setDownloadLink };
 
 const renderToastInvalidData = () => {
    const html = `
@@ -802,8 +845,7 @@ const initFormFields = () => {
       }
 
       const blob = new Blob([JSON.stringify(data)], {type: 'application/json'}) // text/plain
-      e.target.href = window.URL.createObjectURL(blob)
-      e.target.download = 'ibbq_' + new Date().toJSON().slice(0, -5) + '.json'
+      setDownloadLink(e.target, blob)
    });
 
    /*
@@ -940,7 +982,7 @@ document.addEventListener('readystatechange', (e) => {
       // Request the screen wake lock to prevent screen from sleeping when
       // monitoring temps
       requestWakeLock();
-      document.addEventListener("visibilitychange", requestWakeLock);
+      document.addEventListener("visibilitychange", handleVisibilityChange);
 
       WS.init({
          onopen: wsOnOpen,
