@@ -32,10 +32,15 @@ test('alert start and stop control modal and suppress programmatic silence comma
   FakeAudio.playResult = null;
   element.listeners['hide.bs.modal']({});
   assert.equal(WS.calls.length, 1);
+  Alert.start();
+  Alert.start();
+  assert.equal(modal.showCount, 2, 'repeated starts do not duplicate an active alert');
+  Alert.stop();
   Alert.stop();
   assert.equal(modal.hideCount, 1);
   assert.equal(WS.calls.length, 1);
 
+  Alert.start();
   const hide = modal.hide;
   modal.hide = () => { throw new Error('hide failed'); };
   assert.throws(() => Alert.stop(), /hide failed/);

@@ -2,7 +2,12 @@ import * as Utils from './utils.js';
 import * as WS from './websocket.js';
 
 let alertModal = null;
-let stoppingAlert = false;
+const AlertState = Object.freeze({
+   INACTIVE: 'inactive',
+   ACTIVE: 'active',
+   STOPPING: 'stopping'
+});
+let alertState = AlertState.INACTIVE;
 
 const alertAudio = new Audio('/assets/audio/AlertTone.mp3');
 
@@ -99,7 +104,9 @@ const initAlertModal = () => {
       alertAudio.pause();
       alertAudio.currentTime = 0;
 
-      if (stoppingAlert) {
+      const wasActive = alertState === AlertState.ACTIVE;
+      alertState = AlertState.INACTIVE;
+      if (!wasActive) {
          return;
       }
       WS.silenceAlarm();
@@ -111,18 +118,22 @@ const initAlertModal = () => {
 };
 
 const start = () => {
-   if (alertModal != null) {
+   if (alertModal != null && alertState === AlertState.INACTIVE) {
+      alertState = AlertState.ACTIVE;
       alertModal.show();
    }
 };
 
 const stop = () => {
-   if (alertModal != null) {
-      stoppingAlert = true;
+   if (alertModal != null && alertState === AlertState.ACTIVE) {
+      alertState = AlertState.STOPPING;
       try {
          alertModal.hide();
       } finally {
-         stoppingAlert = false;
+         if (alertState === AlertState.STOPPING) {
+            // A failed or deferred hide did not end the active alert.
+            alertState = AlertState.ACTIVE;
+         }
       }
    }
 };
