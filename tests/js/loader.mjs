@@ -13,8 +13,12 @@ export async function resolve(specifier, context, nextResolve) {
   if (specifier === 'bootstrap') return { url: bootstrapStub, shortCircuit: true };
   if (specifier === './utils.js' &&
       (context.parentURL?.endsWith('/websocket.js') || context.parentURL?.endsWith('/chromecast.js') ||
-       context.parentURL?.endsWith('/pwa.js') || context.parentURL?.endsWith('/alert.js'))) {
+       context.parentURL?.endsWith('/pwa.js') || context.parentURL?.endsWith('/alert.js') ||
+       context.parentURL?.endsWith('/probe-settings.js'))) {
     return { url: fakeUtils, shortCircuit: true };
+  }
+  if (specifier === './websocket.js' && context.parentURL?.endsWith('/probe-settings.js')) {
+    return { url: appStub, shortCircuit: true };
   }
   if (specifier === './websocket.js' && context.parentURL?.endsWith('/alert.js')) {
     return { url: pathToFileURL(new URL('./fake-websocket.mjs', import.meta.url).pathname).href, shortCircuit: true };

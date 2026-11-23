@@ -1,475 +1,24 @@
 import * as Alert from './alert.js';
 import * as Bootstrap from 'bootstrap';
-import CanvasJS from 'canvasjs';
+import * as ProbeSettings from './probe-settings.js';
+import { validateSavedProbeReadings } from './chart-history.js';
+import * as Chart from './chart.js';
 import * as Chromecast from './chromecast.js';
 import * as PWA from './pwa.js';
 import * as Utils from './utils.js';
 import * as WS from './websocket.js';
+const { validateProbeTargetTemps } = ProbeSettings;
 
-let chart;
-
-let chartRenderTimeoutId = -1;
-let chartRenderMs = Date.now()
-
-// Match .probe-container:nth-child(...) .probe-idx .dot
-const probeColors = [
-  "#357bcc",
-  "#32a852",
-  "#d4872a",
-  "#bdb320",
-]
-export const probeColorForIndex = (index) => probeColors[index % probeColors.length]
-const STRIPLINE_TEMP_OPACITY = 0.5
-const STRIPLINE_RANGE_OPACITY = 0.15
 const MAX_SAVED_DATA_BYTES = 10 * 1024 * 1024
 
-const CtoF = (temp) => (temp * 9 / 5) + 32;
-const FtoC = (temp) => (temp - 32) * 5 / 9;
-
-const validateProbeTargetTemps = (preset, min, max) => {
-   const result = {
-      valid: true,
-      preset: true,
-      min: true,
-      max: true
-   };
-
-   if (preset === '') {
-      result.preset = false;
-   }
-
-   result.min = min === null || (Number.isInteger(min) && min >= 32 && min <= 572);
-   result.max = max === null || (Number.isInteger(max) && max >= 32 && max <= 572);
-   if (preset === 'custom.temp') {
-      result.min = result.min && min === null;
-   }
-   if (preset === 'custom.range' && (min === null || max === null)) {
-      result.min = min !== null;
-      result.max = max !== null;
-   }
-   if (min !== null && max !== null && min >= max) {
-      result.min = false;
-      result.max = false;
-   }
-   result.valid = result.preset && result.min && result.max;
-   return result;
-};
-
-const isValidProbeReading = (r) => {
-   return r !== null && typeof r === 'object' && !Array.isArray(r) &&
-      Number.isSafeInteger(r.ts) && Math.abs(r.ts) <= 8.64e15 &&
-      Array.isArray(r.probes) && r.probes.length >= 1 && r.probes.length <= 4 &&
-      r.probes.every((p) => p === null ||
-         (typeof p === 'number' && Number.isFinite(p) && p >= 0 && p <= 6553.5))
-}
-
-const normalizeProbeReadings = (readings) => readings.slice().sort((a, b) => a.ts - b.ts)
-
-const validateSavedProbeReadings = (readings) => {
-   if (!Array.isArray(readings) || !readings.every(isValidProbeReading)) {
-      throw new Error('Invalid data structure')
-   }
-
-   if (readings.length === 0) {
-      return []
-   }
-
-   const probeCount = readings[0].probes.length
-   const timestamps = new Set()
-   for (const reading of readings) {
-      if (reading.probes.length !== probeCount || timestamps.has(reading.ts)) {
-         throw new Error('Invalid data structure')
-      }
-      timestamps.add(reading.ts)
-   }
-
-   // Files may contain readings in arrival order; normalize them after checking
-   // that timestamps are unique so sorting cannot hide ambiguous samples.
-   return normalizeProbeReadings(readings)
-}
-
-const isUnitC = () => document.getElementById('ibbq-unit-celcius').checked
-const isUnitF = () => !isUnitC()
-const setUnit = (celsius) => {
-   if (isUnitC() != celsius) {
-      const el = document.getElementById('ibbq-unit-celcius')
-      el.checked = celsius;
-      el.dispatchEvent(new Event('change'));
-   }
-}
-
-const tempFromC = (temp) => temp != null && isUnitF() ? CtoF(temp) : temp
-const tempToC = (temp) => temp != null && isUnitF() ? FtoC(temp) : temp
-
-// TODO: support Celcius presets too
-const updatePreset = () => {
-   const probeTempMin = document.getElementById('probe-temp-min')
-   const probeTempMax = document.getElementById('probe-temp-max')
-
-   const preset = document.querySelector('#probe-preset option:checked')
-   if (preset == null) {
-      probeTempMin.disabled = true
-      probeTempMin.value = null
-      probeTempMax.disabled = true
-      probeTempMax.value = null
-   } else if (preset.value == 'custom.temp') {
-      probeTempMin.disabled = true
-      probeTempMin.value = null
-      probeTempMax.disabled = false
-   } else if (preset.value == 'custom.range') {
-      probeTempMin.disabled = false
-      probeTempMax.disabled = false
-   } else {
-      probeTempMin.disabled = true
-      probeTempMin.value = preset.dataset.ibbqTargetMin || null
-      probeTempMax.disabled = true
-      probeTempMax.value = preset.dataset.ibbqTargetMax
-   }
-}
-
-const initProbeSettingsModal = () => {
-   const html = `
-      <div class="modal fade" id="probeSettingsModal" tabindex="-1" data-bs-backdrop="static" aria-labelledby="probeSettingsModal" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title" id="probeSettingsModalLabel">Probe Settings</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-              <input id="probe-settings-index" type="hidden"/>
-              <div class="form-floating mb-3">
-                <select class="form-select" name="probe-preset" id="probe-preset">
-                  <option value=""></option>
-                  <option value="beef.rare" data-ibbq-target-max="125">Beef (Rare)</option>
-                  <option value="beef.medrare" data-ibbq-target-max="135">Beef (Medium Rare)</option>
-                  <option value="beef.medium" data-ibbq-target-max="145">Beef (Medium)</option>
-                  <option value="beef.medwell" data-ibbq-target-max="155">Beef (Medium Well)</option>
-                  <option value="beef.well" data-ibbq-target-max="160">Beef (Well)</option>
-                  <option value="chicken" data-ibbq-target-max="165">Chicken</option>
-                  <option value="fish" data-ibbq-target-max="145">Fish</option>
-                  <option value="pork" data-ibbq-target-max="145">Pork</option>
-                  <option value="smoke.cold" data-ibbq-target-min="65" data-ibbq-target-max="86">Cold Smoke</option>
-                  <option value="smoke.bbq" data-ibbq-target-min="215" data-ibbq-target-max="240">BBQ Smoke</option>
-                  <option value="custom.temp">Custom Temperature</option>
-                  <option value="custom.range">Custom Range</option>
-                </select>
-                <label for="probe-preset">Preset</label>
-              </div>
-              <div class="row">
-                <div class="col-6">
-                  <div class="form-floating mb-3">
-                    <input type="number" class="form-control" id="probe-temp-min" min="32" max="572" disabled>
-                    <label for="probe-temp-min">Min (&deg;F)</label>
-                  </div>
-                </div>
-                <div class="col-6">
-                  <div class="form-floating mb-3">
-                    <input type="number" class="form-control" id="probe-temp-max" min="32" max="572" disabled>
-                    <label for="probe-temp-max">Max (&deg;F)</label>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-danger flex-grow-1" data-ibbq-action="clear">Clear</button>
-              <button type="button" class="btn btn-secondary flex-grow-1" data-ibbq-action="save">Save</button>
-            </div>
-          </div>
-        </div>
-      </div>
-   `;
-   const obj = Utils.renderModal(html);
-   const presetEl = document.getElementById('probe-preset');
-   const settingsIdxEl = document.getElementById('probe-settings-index');
-   const tempMinEl = document.getElementById('probe-temp-min');
-   const tempMaxEl = document.getElementById('probe-temp-max');
-
-   presetEl.addEventListener('change', (e) => {
-      updatePreset()
-   });
-
-   obj.element.addEventListener('show.bs.modal', (e) => {
-      const probeContainer = e.relatedTarget.closest('.probe-container');
-
-      settingsIdxEl.value = probeContainer.dataset.ibbqProbeIdx
-
-      const preset = probeContainer.dataset.ibbqPreset || '0'
-      presetEl.value = preset
-
-      tempMinEl.value = probeContainer.dataset.ibbqTempMin || ""
-      tempMaxEl.value = probeContainer.dataset.ibbqTempMax || ""
-
-      updatePreset()
-   })
-
-   for (const button of obj.element.getElementsByTagName('button')) {
-      button.addEventListener('click', (e) => {
-         if (!WS.isConnected()) {
-            return
-         }
-
-         const probe = parseInt(settingsIdxEl.value);
-         if (isNaN(probe)) {
-            return
-         }
-
-         if (e.target.dataset.ibbqAction == "clear") {
-            obj.element.querySelectorAll('.is-invalid').forEach((el) => {
-               el.classList.remove('is-invalid');
-            });
-
-            WS.clearProbeTargetTemp(probe);
-         } else if (e.target.dataset.ibbqAction == "save") {
-            const parseIntValue = (el) => {
-               const rawValue = el.value.trim();
-               if (rawValue === '') {
-                  if (el.disabled) {
-                     el.classList.remove('is-invalid');
-                     return { valid: true, value: null };
-                  }
-                  el.classList.add('is-invalid');
-                  return { valid: false, value: null };
-               }
-
-               const value = Number(rawValue);
-               if (!Number.isInteger(value)) {
-                  el.classList.add('is-invalid');
-                  return { valid: false, value: null };
-               }
-               el.classList.remove('is-invalid');
-               return { valid: true, value };
-            };
-
-            let valid = true;
-
-            const preset = presetEl.value;
-            if (preset == '') {
-               presetEl.classList.add('is-invalid');
-               valid = false;
-            } else {
-               presetEl.classList.remove('is-invalid');
-            }
-
-            const min = parseIntValue(tempMinEl);
-            valid &= min.valid;
-
-            const max = parseIntValue(tempMaxEl);
-            valid &= max.valid;
-
-            if (valid) {
-               const validations = validateProbeTargetTemps(preset, min, max);
-               presetEl.classList.toggle('is-invalid', !validations.preset);
-               tempMinEl.classList.toggle('is-invalid', !validations.min);
-               tempMaxEl.classList.toggle('is-invalid', !validations.max);
-               valid = validations.valid;
-            }
-
-            if (!valid) {
-               return;
-            }
-
-            WS.setProbeTargetTemp(probe, preset, tempToC(min.value), tempToC(max.value));
-         } else {
-            return;
-         }
-         obj.modal.hide();
-      });
-   }
-}
-
-const updateProbeTempTarget = (probeIdx) => {
-   const probeContainer = document.querySelector(`.probe-container[data-ibbq-probe-idx="${probeIdx}"]`)
-   const min = parseInt(probeContainer.dataset.ibbqTempMin)
-   const max = parseInt(probeContainer.dataset.ibbqTempMax)
-
-   /*
-    * Update temp-target text on Probes tab
-    */
-   probeContainer.getElementsByClassName('probe-temp-target')[0].innerHTML =
-      isNaN(max) ? '&nbsp;' :
-      isNaN(min) ? max + '&deg;F' :
-                   min + '&deg;F ~ ' + max + '&deg;F'
-
-   /*
-    * Update stripline on chart
-    */
-   const sl = chart.options.axisY.stripLines[probeIdx]
-   if (isNaN(max)) {
-      delete sl.value
-      delete sl.startValue
-      delete sl.endValue
-      sl.opacity = 0
-   } else if (isNaN(min)) {
-      sl.value = max
-      delete sl.startValue
-      delete sl.endValue
-      sl.opacity = STRIPLINE_TEMP_OPACITY
-   } else {
-      delete sl.value
-      sl.startValue = min
-      sl.endValue = max
-      sl.opacity = STRIPLINE_RANGE_OPACITY
-   }
-}
-
-const renderProbe = (idx) => {
-   const template = document.createElement('template');
-   template.innerHTML = `
-      <div class="col probe-container px-0 px-lg-3" data-ibbq-probe-idx="${idx}">
-        <div class="row m-1 my-lg-3 p-1 rounded-3 text-dark">
-          <div class="col-2 pt-2 probe-idx">
-            <span class="dot">${idx+1}</span>
-          </div>
-          <div class="col-8 probe-temp">
-            <div class="row row-cols-1 fs-3">
-              <div class="col probe-temp-current">&nbsp;</div>
-            </div>
-            <div class="row row-cols-1">
-              <div class="col probe-temp-target">&nbsp;</div>
-            </div>
-          </div>
-          <div class="col-2 probe-settings">
-            <a href="#" class="text-dark" data-bs-toggle="modal" data-bs-target="#probeSettingsModal">
-              <i class="bi bi-gear-fill"></i>
-            </a>
-          </div>
-        </div>
-      </div>
-   `;
-
-   const el = template.content.firstElementChild;
-   document.getElementById('probe-list').append(el);
-
-   return el;
-}
-
-const appendChartData = (probeReading) => {
-   // When the temp remains the same, we just need the first/last timestamps
-   // of those values to draw a straight line.
-   //
-   // Because the tooltip is shared across all data sets, we need to add a
-   // datapoint to all data sets any time one temp changes so the toolip
-   // shows all temps
-   const lastReadings = chart.options.data.map(d => d.dataPoints.slice(-2))
-   const duplicateReading =
-      lastReadings.length == probeReading.probes.length &&
-      lastReadings.every(dp => dp.length == 2) &&
-      lastReadings.every((dp, i) =>
-         probeReading['probes'][i] == dp[1].tempC && dp[1].tempC == dp[0].tempC
-      );
-
-   for (const [i, tempC] of probeReading.probes.entries()) {
-      const probeEl = document.querySelector(`.probe-container[data-ibbq-probe-idx="${i}"]`) ||
-                      renderProbe(i);
-
-      probeEl.getElementsByClassName('probe-temp-current')[0].innerHTML =
-         tempC === null ? '--' : tempFromC(tempC) + "&deg;"
-
-      if (chart.options.data.length < i + 1) {
-         const probeColor = probeColorForIndex(i)
-         chart.options.data.push({
-            type: "line",
-            markerSize: 0,
-            name: "Probe " + (i+1),
-            showInLegend: true,
-            legendText: "N/A",
-            color: probeColor,
-            xValueType: "dateTime",
-            dataPoints: [],
-         })
-
-         chart.options.axisY.stripLines.push({
-            value: null,
-            opacity: 0,
-            color: probeColor,
-            labelFontColor: probeColor,
-            label: "Probe " + (i+1) + " Target",
-            labelBackgroundColor: 'transparent',
-            labelFormatter: (e) => {
-               const sl = e.stripLine
-               if (sl.startValue !== null && sl.endValue !== null) {
-                  return sl.startValue + '° ~ ' + sl.endValue + '°'
-               } else if (sl.value !== null) {
-                  return sl.value + '°'
-               } else {
-                  return ''
-               }
-            },
-         })
-      }
-
-      chart.options.data[i].legendText =
-         tempC != null ? tempFromC(tempC) + "°" : "N/A"
-
-      if (duplicateReading) {
-         lastReadings[i][1].x = probeReading.ts;
-      } else {
-         chart.options.data[i].dataPoints.push({
-            x: probeReading.ts,
-            y: tempFromC(tempC),
-            tempC: tempC,
-         })
-      }
-   }
-
-   if (probeReading.ts >= chart.options.axisX.maximum) {
-      // Increase by 25%
-      const min = chart.options.axisX.minimum
-      const max = chart.options.axisX.maximum
-      chart.options.axisX.maximum = min + ((max-min) * 1.25)
-   }
-}
-
-const renderChart = (minRenderIntervalMs=50) => {
-   if (document.visibilityState != "visible") {
-      // No reason to re-render the graph if the browser/tab is hidden
-      return
-   }
-
-   if (!document.querySelector('button[aria-controls="graph"]').classList.contains("active")) {
-      // No reason to re-render the graph if a different navigation tab is
-      // selected
-      return
-   }
-
-   // Don't re-render too often. Ex: if browser has been sleeping, when it
-   // awakens it might process 10s+ update messages from the websocket all
-   // at once... wait for them all to be processed before rendering the final
-   // result.
-   const msSinceLastRender = Date.now() - chartRenderMs;
-   chartRenderMs = Date.now();
-   if (msSinceLastRender < minRenderIntervalMs) {
-      clearTimeout(chartRenderTimeoutId)
-      chartRenderTimeoutId = setTimeout(renderChart, 50)
-      return
-   }
-
-   chart.render()
-}
-
-const resetChartData = (probe_readings) => {
-   chart.options.data = []
-   chart.options.axisY.stripLines = []
-   let xMin = new Date().getTime()
-   for (const reading of probe_readings) {
-      if (Array.isArray(reading.probes) && reading.probes.some(temp => temp != null)) {
-         xMin = reading.ts
-         break
-      }
-   }
-   chart.options.axisX.minimum = xMin
-   chart.options.axisX.maximum = xMin + (10 * 60 * 1000) // +10 min
-}
-
 const wsOnOpen = (e) => {
-   renderChart();
+   Chart.renderChart();
 };
 
 const wsOnClose = (e) => {
    renderConnectionState(ConnectionState.UNKNOWN);
    if (e.isDisconnect) {
-      renderChart(); // XXX: Why??
+      Chart.renderChart(); // XXX: Why??
    }
 };
 
@@ -536,12 +85,12 @@ const wsOnMessage = (e) => {
        * Update probe data (probe and chart tabs)
        */
       if (data.full_history) {
-         resetChartData(data.probe_readings)
+         Chart.resetChartData(data.probe_readings)
       }
 
       if (data.full_history || data.connected) {
          for (const reading of data.probe_readings) {
-            appendChartData(reading);
+            Chart.appendChartData(reading);
          }
 
          for (const i of (data.probe_readings[0]?.probes || []).keys()) {
@@ -558,13 +107,13 @@ const wsOnMessage = (e) => {
                if (targetTemp.min_temp == null) {
                   delete probeContainer.dataset.ibbqTempMin;
                } else {
-                  probeContainer.dataset.ibbqTempMin = tempFromC(targetTemp.min_temp);
+                  probeContainer.dataset.ibbqTempMin = ProbeSettings.tempFromC(targetTemp.min_temp);
                }
 
                if (targetTemp.max_temp == null) {
                   delete probeContainer.dataset.ibbqTempMax;
                } else {
-                  probeContainer.dataset.ibbqTempMax = tempFromC(targetTemp.max_temp);
+                  probeContainer.dataset.ibbqTempMax = ProbeSettings.tempFromC(targetTemp.max_temp);
                }
             } else {
                delete probeContainer.dataset.ibbqPreset;
@@ -572,10 +121,10 @@ const wsOnMessage = (e) => {
                delete probeContainer.dataset.ibbqTempMax;
             }
 
-            updateProbeTempTarget(i)
+            Chart.updateProbeTempTarget(i)
          }
 
-         renderChart()
+         Chart.renderChart()
 
          /*
           * Update target temp alert
@@ -591,19 +140,17 @@ const wsOnMessage = (e) => {
          console.error("Ignoring invalid unit_update payload");
          return;
       }
-      setUnit(data.unit == "C");
+      ProbeSettings.setUnit(data.unit == "C");
 
       // Update chart
-      for (const dataSeries of chart.options.data) {
-         for (const dataPoint of dataSeries.dataPoints) {
-            dataPoint.y = tempFromC(dataPoint.tempC)
-         }
-      }
-      renderChart(0)
+      Chart.updateTemperatureUnit(ProbeSettings.tempFromC)
+      Chart.renderChart(0)
    }
 }
 
-export { wsOnMessage, validateSavedProbeReadings, validateProbeTargetTemps, isStateUpdate };
+export { wsOnMessage, validateSavedProbeReadings, isStateUpdate };
+export { validateProbeTargetTemps };
+export const probeColorForIndex = Chart.probeColorForIndex;
 
 let screenWakeLock = null;
 let wakeLockRequest = null;
@@ -733,79 +280,13 @@ const renderConnectionState = (state) => {
    }
 };
 
-const initChart = () => {
-   const options = {
-      animationEnabled: true,
-      legend: {
-         cursor: "pointer",
-         verticalAlign: "top",
-         fontSize: 20,
-         itemclick: (e) => {
-            e.dataSeries.visible = e.dataSeries.visible !== undefined &&
-                                   !e.dataSeries.visible
-            renderChart(0)
-         }
-      },
-      toolTip: {
-         shared: true,
-         contentFormatter: (e) => {
-            let content = `
-               <div style="font-weight: bold; text-decoration: underline; margin-bottom: 5px;">
-                  ${CanvasJS.formatDate(e.entries[0].dataPoint.x, "hh:mm:ss TT")}
-               </div>
-            `;
-            for (const entry of e.entries) {
-               if (entry.dataPoint.y === undefined) {
-                  continue;
-               }
-               content += `
-                  <span style="font-weight: bold; color: ${entry.dataSeries.color};">
-                     ${entry.dataSeries.name}:
-                  </span>
-                  ${entry.dataPoint.y.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
-                  </br>
-               `;
-            }
-            return content;
-         },
-      },
-      zoomEnabled: true,
-      axisX: {
-         labelAngle: -25,
-         labelFontSize: 20,
-         labelFormatter: (e) => CanvasJS.formatDate(e.value, "hh:mm TT"),
-         minimum: new Date(),
-         maximum: new Date(new Date().getTime() + (10 * 60 * 1000)), // +10 min
-      },
-      axisY: {
-         includeZero: true,
-         labelFontSize: 20,
-         logarithmic: false,
-         logarithmBase: 10,
-         minimum: parseInt(document.getElementById('chart-min-y').value),
-         stripLines: [],
-      },
-      data: [],
-   };
-   chart = new CanvasJS.Chart("graph", options);
-
-   // Rendering is skipped when the page is not visible; make sure to render
-   // any incremental changes received when the page becomes visible again
-   document.addEventListener("visibilitychange", renderChart);
-
-   // Workaround graph not rendering correct size initially
-   document.querySelector('button[aria-controls="graph"]').addEventListener(
-      'shown.bs.tab', (e) => renderChart(0)
-   );
-}
-
 const initFormFields = () => {
    /*
     * Temperature Unit
     */
    const unitEl = document.getElementById("ibbq-unit-celcius");
    unitEl.addEventListener('click', (e) => {
-      WS.setUnit(isUnitC());
+      WS.setUnit(ProbeSettings.isUnitC());
    });
    unitEl.addEventListener('change', (e) => {
       const label = e.target.labels[0];
@@ -816,32 +297,16 @@ const initFormFields = () => {
     * Y-Axis Minimum
     */
    document.getElementById("chart-min-y").addEventListener('change', (e) => {
-      chart.options.axisY.minimum = parseInt(e.target.value);
-      renderChart(0);
+      Chart.setMinimumY(parseInt(e.target.value));
+      Chart.renderChart(0);
    });
 
    /*
     * Save Chart Data
     */
    document.getElementById('ibbq-download').addEventListener('click', (e) => {
-      const probe_readings = new Map()
-      for (const [i, dataSeries] of chart.options.data.entries()) {
-         for (const dataPoint of dataSeries.dataPoints) {
-            if (probe_readings.get(dataPoint.x) == undefined) {
-               probe_readings.set(dataPoint.x, [])
-            }
-            probe_readings.get(dataPoint.x)[i] = dataPoint.tempC
-         }
-      }
-
       const data = {
-         'probe_readings': Array.from(probe_readings.keys()).reduce((result, ts) => {
-            result.push({
-               'ts': ts,
-               'probes': probe_readings.get(ts)
-            })
-            return result
-          }, []),
+         'probe_readings': Chart.getProbeReadings(),
       }
 
       const blob = new Blob([JSON.stringify(data)], {type: 'application/json'}) // text/plain
@@ -875,11 +340,11 @@ const initFormFields = () => {
          // Disconnect from server
          WS.disconnect();
 
-         resetChartData(readings)
+         Chart.resetChartData(readings)
          for (const reading of readings) {
-            appendChartData(reading);
+            Chart.appendChartData(reading);
          }
-         renderChart(0)
+         Chart.renderChart(0)
       }).catch((ex) => {
          console.log('Error parsing saved data file "' + file.name + '": ' + ex.message)
          renderToastInvalidData();
@@ -974,9 +439,9 @@ document.addEventListener('readystatechange', (e) => {
       renderConnectionState(ConnectionState.UNKNOWN);
       PWA.init();
       initFormFields();
-      initProbeSettingsModal();
+      ProbeSettings.initProbeSettingsModal();
       Alert.init();
-      initChart();
+      Chart.initChart();
       initUrlTab();
 
       // Request the screen wake lock to prevent screen from sleeping when
