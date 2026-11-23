@@ -2,13 +2,26 @@ import * as Utils from './utils.js';
 import * as WS from './websocket.js';
 
 let alertModal = null;
-let inStopHandler = false;
+let stoppingAlert = false;
 
 const alertAudio = new Audio('/assets/audio/AlertTone.mp3');
 
+const reportAudioError = (error) => {
+   alert("Audio notifications are blocked by your browser, please " +
+         "check browser documentation for details:\n\n" + error);
+};
+
+const playAudio = () => {
+   try {
+      return Promise.resolve(alertAudio.play());
+   } catch (error) {
+      return Promise.reject(error);
+   }
+};
+
 const initPlayback = () => {
    alertAudio.muted = true;
-   alertAudio.play().catch(error => {
+   playAudio().catch(error => {
       const html = `
          <div class="modal fade" id="audioNoticeModal" tabindex="-1" aria-hidden="true">
            <div class="modal-dialog modal-dialog-centered">
@@ -33,16 +46,16 @@ const initPlayback = () => {
       obj.modal.show();
 
       return new Promise((resolve, reject) => {
-         obj.element.addEventListener('hide.bs.modal', (e) => {
+         obj.element.addEventListener('hide.bs.modal', () => {
             // Avoid warning about aria-hidden when the element retains focus
             document.activeElement.blur();
 
             alertAudio.muted = true;
-            alertAudio.play().then(() => {
+            playAudio().then(() => {
                resolve();
             }).catch(error => {
                reject(error);
-            })
+            });
          });
       })
    }).then(() => {
@@ -51,8 +64,7 @@ const initPlayback = () => {
       alertAudio.muted = false;
       alertAudio.loop = true;
    }).catch(error => {
-      alert("Audio notifications are blocked by your browser, please " +
-            "check browser documentation for details:\n\n" + error);
+      reportAudioError(error);
    });
 };
 
@@ -87,14 +99,14 @@ const initAlertModal = () => {
       alertAudio.pause();
       alertAudio.currentTime = 0;
 
-      if (inStopHandler) {
+      if (stoppingAlert) {
          return;
       }
       WS.silenceAlarm();
    });
 
    obj.element.addEventListener('show.bs.modal', (e) => {
-      alertAudio.play();
+      playAudio().catch(reportAudioError);
    });
 };
 
@@ -106,9 +118,12 @@ const start = () => {
 
 const stop = () => {
    if (alertModal != null) {
-      inStopHandler = true;
-      alertModal.hide();
-      inStopHandler = false;
+      stoppingAlert = true;
+      try {
+         alertModal.hide();
+      } finally {
+         stoppingAlert = false;
+      }
    }
 };
 
