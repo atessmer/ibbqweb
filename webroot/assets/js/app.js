@@ -412,10 +412,50 @@ const wsOnClose = (e) => {
    }
 };
 
+const isFiniteNumber = (value) => typeof value === "number" && Number.isFinite(value);
+
+const isStateUpdate = (data) => {
+   if (typeof data.connected !== "boolean" ||
+       typeof data.full_history !== "boolean" ||
+       typeof data.target_temp_alert !== "boolean" ||
+       !(data.battery_level === null || isFiniteNumber(data.battery_level)) ||
+       !Array.isArray(data.probe_readings) ||
+       data.probe_readings.some(reading =>
+          !reading || typeof reading !== "object" ||
+          !isFiniteNumber(reading.ts) || !Array.isArray(reading.probes) ||
+          reading.probes.some(temp => temp !== null && !isFiniteNumber(temp))) ||
+       !data.target_temps || typeof data.target_temps !== "object" ||
+       Array.isArray(data.target_temps)) {
+      return false;
+   }
+
+   return Object.values(data.target_temps).every(target =>
+      target && typeof target === "object" &&
+      (target.preset === null || typeof target.preset === "string") &&
+      (target.min_temp === null || isFiniteNumber(target.min_temp)) &&
+      (target.max_temp === null || isFiniteNumber(target.max_temp)));
+};
+
 const wsOnMessage = (e) => {
-   const data = JSON.parse(e.data)
+   let data;
+   try {
+      data = JSON.parse(e.data);
+   } catch (err) {
+      console.error("Ignoring malformed WebSocket message", err);
+      return;
+   }
+
+   if (!data || typeof data !== "object" || Array.isArray(data) ||
+       typeof data.cmd !== "string") {
+      console.error("Ignoring invalid WebSocket message shape");
+      return;
+   }
 
    if (data.cmd == "state_update") {
+      if (!isStateUpdate(data)) {
+         console.error("Ignoring invalid state_update payload");
+         return;
+      }
       /*
        * Update connection status
        */
@@ -482,6 +522,10 @@ const wsOnMessage = (e) => {
          }
       }
    } else if (data.cmd == "unit_update") {
+      if (data.unit !== "C" && data.unit !== "F") {
+         console.error("Ignoring invalid unit_update payload");
+         return;
+      }
       setUnit(data.unit == "C");
 
       // Update chart
@@ -493,6 +537,8 @@ const wsOnMessage = (e) => {
       renderChart(0)
    }
 }
+
+export { wsOnMessage };
 
 const requestWakeLock = async () => {
    if (document.visibilityState != "visible") {
