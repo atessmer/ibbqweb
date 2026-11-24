@@ -175,16 +175,19 @@ class IBBQ: # pylint: disable=too-many-instance-attributes
 
     async def connect(self, address=None):
         if self._device is None:
-            if address is None:
-                while self._device is None:
-                    self._device = await bleak.BleakScanner.find_device_by_name("iBBQ")
+            try:
+                if address is None:
+                    while self._device is None:
+                        self._device = await bleak.BleakScanner.find_device_by_name("iBBQ")
+                        if self._device is None:
+                            await asyncio.sleep(1)
+                    log.info("Found iBBQ: %s", self._device.address)
+                else:
+                    self._device = await bleak.BleakScanner.find_device_by_address(address)
                     if self._device is None:
-                        await asyncio.sleep(1)
-                log.info("Found iBBQ: %s", self._device.address)
-            else:
-                self._device = await bleak.BleakScanner.find_device_by_address(address)
-                if self._device is None:
-                    raise ValueError(f"Device with address {address} not found")
+                        raise ValueError(f"Device with address {address} not found")
+            except bleak.exc.BleakError as ex:
+                raise ConnectionError("Failure to scan for device") from ex
         elif address is not None and self._device.address != address:
             raise NotImplementedError("Changing BLE address not supported")
 

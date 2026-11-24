@@ -99,6 +99,17 @@ class IbbqTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(NotImplementedError):
             await ibbq.connect("00:11:22:33:44:55:66")
 
+    async def test_bleak_scanner_failure_raises_connection_error(self):
+        bleak_error = ibbq_module.bleak.exc.BleakError("Operation already in progress")
+        with patch.object(ibbq_module.bleak.BleakScanner,
+                          "find_device_by_name",
+                          new=AsyncMock(side_effect=bleak_error),
+                          create=True):
+            with self.assertRaisesRegex(ConnectionError, "Failure to scan") as raised:
+                await IBBQ().connect()
+
+        self.assertIs(raised.exception.__cause__, bleak_error)
+
     async def test_bleak_connect_failure_cleans_up_and_raises_connection_error(self):
         client = FakeBleakClient(self._device, None)
         bleak_error = ibbq_module.bleak.exc.BleakError("radio unavailable")
