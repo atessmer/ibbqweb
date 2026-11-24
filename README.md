@@ -83,11 +83,15 @@ The following steps can be used to add an ibbqweb service to systemd to start ib
 ```
 [Unit]
 Description=iBBQWeb service
-After=network.target
+Wants=network-online.target
+After=network-online.target
 
 [Service]
 User=ibbqweb
-ExecStart=/usr/local/bin/ibbqweb/ibbqweb.py
+WorkingDirectory=/usr/local/bin/ibbqweb
+ExecStart=/usr/bin/python3 ibbqweb.py
+Restart=on-failure
+RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target
